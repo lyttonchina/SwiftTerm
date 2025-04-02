@@ -580,6 +580,9 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
     private func changeFontSizeSmoothly(_ size: CGFloat) {
         print("开始更改字体大小到: \(size)pt")
         
+        // 保存当前光标位置 - 使用公开API
+        let terminalController = terminal.getTerminal()
+        
         // 创建新字体
         let newFont = NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
         
@@ -591,15 +594,30 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
         terminal.setFont(newFont, clearScreen: false)
         
         // 调整视图大小并强制刷新
+        terminal.frame = view.frame
         terminal.needsDisplay = true
+        
+        // 确保视图范围大小正确
+        if !changingSize {
+            changingSize = true
+            // 使用getOptimalFrameSize来基于新字体获取正确大小
+            var newFrameSize = terminal.getOptimalFrameSize()
+            let windowFrame = view.window!.frame
+            
+            // 保持窗口宽度不变，只调整高度
+            newFrameSize = CGRect(
+                x: windowFrame.minX,
+                y: windowFrame.minY,
+                width: windowFrame.width,
+                height: windowFrame.height - view.frame.height + newFrameSize.height
+            )
+            
+            view.window?.setFrame(newFrameSize, display: true, animate: false)
+            changingSize = false
+        }
         
         // 结束动画组
         NSAnimationContext.endGrouping()
-        
-        // 显示确认消息
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            self.terminal.feed(text: "\r\n\u{1B}[7m字体大小已更改为 \(size)pt\u{1B}[0m")
-        }
         
         print("字体大小更改完成：\(size)pt")
     }
