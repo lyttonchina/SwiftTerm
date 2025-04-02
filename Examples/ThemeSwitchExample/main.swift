@@ -200,7 +200,7 @@ class ThemeSwitchExample: NSObject, TerminalViewDelegate, LocalProcessDelegate {
         
         // 将更新后的尺寸应用到ioctl
         let fd = shell.childfd
-        ioctl(fd, TIOCSWINSZ, &size)
+        _ = ioctl(fd, TIOCSWINSZ, ioctl(fd, TIOCSWINSZ, &size)size)
     }
     
     func send(source: TerminalView, data: ArraySlice<UInt8>) {

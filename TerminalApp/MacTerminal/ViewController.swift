@@ -580,9 +580,6 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
     private func changeFontSizeSmoothly(_ size: CGFloat) {
         print("开始更改字体大小到: \(size)pt")
         
-        // 保存当前光标位置 - 使用公开API
-        let terminalController = terminal.getTerminal()
-        
         // 创建新字体
         let newFont = NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
         
@@ -697,7 +694,7 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
         }
 
         // 同样处理前景色
-        let fgColor = theme.foreground
+        // 获取前景色
         let nsForegroundColor: NSColor
         // 简化条件判断
         let isBlackFg = theme.foreground.red < 5000 && theme.foreground.green < 5000 && theme.foreground.blue < 5000
