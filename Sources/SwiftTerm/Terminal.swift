@@ -147,8 +147,9 @@ public protocol TerminalDelegate: AnyObject {
      * This method is invoked when a color in the 0..255 palette has been redefined, if the
      * front-end keeps a cache or uses indexed rendering, it should update the color
      * with the new values.   If the value of idx is nil, this means all the ansi colors changed
+     * The preserveBuffer parameter controls whether a full screen refresh should be triggered.
      */
-    func colorChanged (source: Terminal, idx: Int?)
+    func colorChanged (source: Terminal, idx: Int?, preserveBuffer: Bool)
     
     /**
      * The view should try to set the foreground color to the provided color
@@ -5225,6 +5226,31 @@ open class Terminal {
     {
         buffer.translateBufferLineToString(lineIndex: line, trimRight: true, startCol: start, endCol: end).replacingOccurrences(of: "\u{0}", with: " ")
     }
+
+    /// 仅更新颜色，不影响终端缓冲区内容
+    public func updateColorsOnly(colors: [Color]) {
+        if colors.count != 16 {
+            return
+        }
+        installedColors = colors
+        defaultAnsiColors = Color.setupDefaultAnsiColors(initialColors: installedColors)
+        ansiColors = defaultAnsiColors
+        
+        // 通知委托颜色已更改，但不触发缓冲区重置
+        tdel?.colorChanged(source: self, idx: nil, preserveBuffer: true)
+    }
+
+    /// 安装ANSI调色板，但允许选择是否触发全屏刷新
+    public func installPalette(colors: [Color], preserveBuffer: Bool = false) {
+        if colors.count != 16 {
+            return
+        }
+        installedColors = colors
+        defaultAnsiColors = Color.setupDefaultAnsiColors(initialColors: installedColors)
+        ansiColors = defaultAnsiColors
+        
+        tdel?.colorChanged(source: self, idx: nil, preserveBuffer: preserveBuffer)
+    }
 }
 
 // Default implementations
@@ -5292,7 +5318,7 @@ public extension TerminalDelegate {
     func hostCurrentDocumentUpdated (source: Terminal) {
     }
     
-    func colorChanged (source: Terminal, idx: Int?) {
+    func colorChanged (source: Terminal, idx: Int?, preserveBuffer: Bool) {
         
     }
     
@@ -5330,4 +5356,11 @@ public extension TerminalDelegate {
 
     func createImage (source: Terminal, data: Data, width: ImageSizeRequest, height: ImageSizeRequest, preserveAspectRatio: Bool) {
     }    
+}
+
+extension TerminalDelegate {
+    // 兼容旧版本，默认不保留缓冲区（与原行为一致）
+    func colorChanged(source: Terminal, idx: Int?) {
+        colorChanged(source: source, idx: idx, preserveBuffer: false)
+    }
 }

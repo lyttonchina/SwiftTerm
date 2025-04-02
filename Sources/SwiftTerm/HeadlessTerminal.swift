@@ -58,7 +58,7 @@ public class HeadlessTerminal : TerminalDelegate, LocalProcessDelegate {
     public func hostCurrentDirectoryUpdated(source: Terminal) {
         dir = source.hostCurrentDirectory
     }
-    public func colorChanged(source: Terminal, idx: Int) {
+    public func colorChanged(source: Terminal, idx: Int?, preserveBuffer: Bool = false) {
     }
     
     public var images: [([UInt8], Int, Int)] = []

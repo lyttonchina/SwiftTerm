@@ -1,0 +1,8 @@
+warning: 'swiftterm': found 1 file(s) which are unhandled; explicitly declare them as resources or exclude from the target
+    /Volumes/data/swift/SwiftTerm/Examples/ThemeSwitchExample/README.md
+warning: 'swiftterm': found 1 file(s) which are unhandled; explicitly declare them as resources or exclude from the target
+    /Volumes/data/swift/SwiftTerm/Sources/SwiftTerm/Mac/README.md
+[0/1] Planning build
+Building for debugging...
+[0/3] Write swift-version--58304C5D6DBC2206.txt
+Build of product 'ThemeSwitchExample' complete! (0.91s)
