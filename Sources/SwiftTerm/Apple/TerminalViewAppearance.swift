@@ -1,8 +1,8 @@
 //
-//  TerminalView+ThemeSwitch.swift
+//  TerminalViewAppearance.swift
 //  SwiftTerm
 //
-//  Extension for smoother theme switching
+//  Extension for terminal appearance including smooth theme switching and font size changes
 //
 
 #if os(macOS) || os(iOS) || os(visionOS)
@@ -86,6 +86,54 @@ extension TerminalView {
         self.font = newFont
     }
     
+    /// 平滑更新字体大小，避免清空屏幕
+    /// - Parameter size: 新的字体大小
+    /// - Note: 尝试避免清空终端内容
+    public func setFontWithoutClearing(_ size: CGFloat) {
+        print("更改字体大小为: \(size)pt")
+        
+        // 保存当前终端状态
+        let oldBg = terminal.backgroundColor
+        let oldFg = terminal.foregroundColor
+        
+        #if os(iOS) || os(visionOS)
+        let newFont = UIFont.monospacedSystemFont(ofSize: size, weight: .regular)
+        #elseif os(macOS)
+        let newFont = NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
+        #endif
+        
+        // 第1阶段: 尝试直接设置fontSet属性的字体，避免触发resetFont()
+        if let fontSet = self.value(forKey: "fontSet") as? NSObject {
+            // 尝试更新fontSet的所有字体属性
+            fontSet.setValue(newFont, forKey: "normal")
+            fontSet.setValue(newFont, forKey: "bold")
+            fontSet.setValue(newFont, forKey: "italic")
+            fontSet.setValue(newFont, forKey: "boldItalic")
+            
+            // 调整终端视图框架以触发布局更新，但不清除内容
+            let oldFrame = self.frame
+            self.frame = CGRect(x: oldFrame.origin.x, y: oldFrame.origin.y, 
+                               width: oldFrame.width + 1, height: oldFrame.height)
+            self.frame = oldFrame
+        } else {
+            // 第2阶段: 尝试使用selector动态设置字体，如果无法直接访问fontSet
+            let fontSelector = NSSelectorFromString("setFont:")
+            if self.responds(to: fontSelector) {
+                self.perform(fontSelector, with: newFont)
+            } else {
+                // 最后手段: 直接设置字体，这可能会触发重置
+                self.font = newFont
+            }
+        }
+        
+        // 恢复终端颜色
+        terminal.backgroundColor = oldBg
+        terminal.foregroundColor = oldFg
+        
+        // 更新完成后的消息
+        print("字体大小已更改为: \(size)pt")
+    }
+    
     /// 更新字体族和大小
     /// - Parameters:
     ///   - fontName: 字体名称
@@ -114,7 +162,7 @@ extension TerminalView {
     ///   - italic: 斜体
     ///   - boldItalic: 粗体斜体
     /// - Note: 这会触发布局重算和屏幕重绘
-    func updateFonts(normal: TTFont, bold: TTFont, italic: TTFont, boldItalic: TTFont) {
+    internal func updateFonts(normal: TTFont, bold: TTFont, italic: TTFont, boldItalic: TTFont) {
         // Create a new FontSet with the base font
         fontSet = FontSet(font: normal)
         
@@ -142,6 +190,84 @@ extension TerminalView {
         self.colors = Array(repeating: nil, count: 256)
         queuePendingDisplay()
     }
+    
+    /// 安全地应用完整主题，包括前景色、背景色、光标颜色和ANSI颜色集
+    /// - Parameters:
+    ///   - colors: ANSI颜色数组
+    ///   - background: 背景色
+    ///   - foreground: 前景色
+    ///   - cursor: 光标颜色
+    ///   - cursorText: 光标文本颜色
+    public func applyCompleteTheme(
+        colors: [Color],
+        background: Color,
+        foreground: Color,
+        cursor: Color? = nil,
+        cursorText: Color? = nil
+    ) {
+        // 保存当前状态
+        setBufferPreservation(true)
+        
+        // 设置基础颜色
+        terminal.backgroundColor = background
+        terminal.foregroundColor = foreground
+        
+        // 更新光标颜色
+        updateCursorColor(cursor, textColor: cursorText)
+        
+        // 应用ANSI颜色，但不清空屏幕
+        updateColorsOnly(colors)
+    }
+    
+    #if os(iOS) || os(visionOS)
+    /// 安全地应用完整主题，包括前景色、背景色、光标颜色、ANSI颜色集和选择高亮色
+    /// - Parameters:
+    ///   - colors: ANSI颜色数组
+    ///   - background: 背景色
+    ///   - foreground: 前景色
+    ///   - cursor: 光标颜色
+    ///   - cursorText: 光标文本颜色
+    ///   - selection: 选择高亮色
+    public func applyCompleteTheme(
+        colors: [Color],
+        background: Color,
+        foreground: Color,
+        cursor: Color? = nil,
+        cursorText: Color? = nil,
+        selection: UIColor
+    ) {
+        // 应用基本主题
+        applyCompleteTheme(colors: colors, background: background, foreground: foreground, 
+                          cursor: cursor, cursorText: cursorText)
+        
+        // 更新选择高亮色
+        updateSelectionColor(selection)
+    }
+    #elseif os(macOS)
+    /// 安全地应用完整主题，包括前景色、背景色、光标颜色、ANSI颜色集和选择高亮色
+    /// - Parameters:
+    ///   - colors: ANSI颜色数组
+    ///   - background: 背景色
+    ///   - foreground: 前景色
+    ///   - cursor: 光标颜色
+    ///   - cursorText: 光标文本颜色
+    ///   - selection: 选择高亮色
+    public func applyCompleteTheme(
+        colors: [Color],
+        background: Color,
+        foreground: Color,
+        cursor: Color? = nil,
+        cursorText: Color? = nil,
+        selection: NSColor
+    ) {
+        // 应用基本主题
+        applyCompleteTheme(colors: colors, background: background, foreground: foreground, 
+                          cursor: cursor, cursorText: cursorText)
+        
+        // 更新选择高亮色
+        updateSelectionColor(selection)
+    }
+    #endif
     
     // 在文件范围内访问的辅助方法
     fileprivate func setBufferPreservation(_ preserved: Bool) {
@@ -186,4 +312,4 @@ extension TerminalView {
     }
 }
 
-#endif
+#endif 
