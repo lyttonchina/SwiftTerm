@@ -6,6 +6,7 @@
 //  Copyright © 2020 Miguel de Icaza. All rights reserved.
 //
 
+import Foundation
 import Cocoa
 import SwiftTerm
 import ObjectiveC
@@ -575,51 +576,32 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
         }
     }
     
-    // 平滑更改字体大小而不清屏 - 使用AppTerminalView中的方法
+    // 平滑更改字体大小而不清屏
     private func changeFontSizeSmoothly(_ size: CGFloat) {
         print("开始更改字体大小到: \(size)pt")
         
-        // 保存当前状态
-        let oldBgColor = terminal.nativeBackgroundColor
-        let oldFgColor = terminal.nativeForegroundColor
-        
         // 创建新字体
-        print("创建新字体...")
         let newFont = NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
         
-        // 用无闪烁更新方式
-        print("使用无闪烁方式更新字体...")
-        
-        // 1. 禁用视图动画 - 使用NSAnimationContext替代
+        // 停用动画以减少闪烁
         NSAnimationContext.beginGrouping()
         NSAnimationContext.current.duration = 0
         
-        // 2. 更新字体
-        terminal.font = newFont
+        // 使用setFont方法更改字体而不清屏
+        terminal.setFont(newFont, clearScreen: false)
         
-        // 3. 确保颜色不变
-        terminal.nativeBackgroundColor = oldBgColor
-        terminal.nativeForegroundColor = oldFgColor
+        // 调整视图大小并强制刷新
+        terminal.needsDisplay = true
         
-        // 4. 强制重绘视图
-        terminal.setNeedsDisplay(terminal.bounds)
-        
-        // 5. 结束动画组
+        // 结束动画组
         NSAnimationContext.endGrouping()
         
-        // 6. 延迟再次应用颜色，确保字体更改后颜色正确
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            self.terminal.nativeBackgroundColor = oldBgColor
-            self.terminal.nativeForegroundColor = oldFgColor
-            self.terminal.setNeedsDisplay(self.terminal.bounds)
+        // 显示确认消息
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            self.terminal.feed(text: "\r\n\u{1B}[7m字体大小已更改为 \(size)pt\u{1B}[0m")
         }
         
         print("字体大小更改完成：\(size)pt")
-        
-        // 不输出到终端，改为显示在代码中
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.terminal.feed(text: "\r\n")
-        }
     }
 
     // 设置自定义字体大小
@@ -775,4 +757,5 @@ extension SwiftTerm.Color {
         return (r * 0.299 + g * 0.587 + b * 0.114)
     }
 }
+
 

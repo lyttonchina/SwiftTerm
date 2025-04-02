@@ -48,13 +48,18 @@ extension TerminalView {
     }
     
     // This is invoked when the font changes to recompute state
-    func resetFont()
+    func resetFont(clearScreen: Bool = true)
     {
         resetCaches()
-        self.cellDimension = computeFontDimensions ()
-        let newCols = Int(frame.width / cellDimension.width)
-        let newRows = Int(frame.height / cellDimension.height)
-        resize(cols: newCols, rows: newRows)
+        self.cellDimension = computeFontDimensions()
+        
+        if clearScreen {
+            // 仅在需要清屏时执行以下操作
+            let newCols = Int(frame.width / cellDimension.width)
+            let newRows = Int(frame.height / cellDimension.height)
+            resize(cols: newCols, rows: newRows)
+        }
+        
         updateCaretView()
     }
     

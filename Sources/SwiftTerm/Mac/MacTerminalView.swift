@@ -133,6 +133,15 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         }
     }
     
+    /// 设置字体而不清屏的方法
+    public func setFont(_ newFont: NSFont, clearScreen: Bool = true) {
+        fontSet = FontSet(font: newFont)
+        resetFont(clearScreen: clearScreen)
+        if clearScreen {
+            selectNone()
+        }
+    }
+    
     public init(frame: CGRect, font: NSFont?) {
         self.fontSet = FontSet (font: font ?? FontSet.defaultFont)
 
