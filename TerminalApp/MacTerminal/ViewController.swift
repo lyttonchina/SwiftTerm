@@ -10,8 +10,10 @@ import Foundation
 import Cocoa
 import SwiftTerm
 import ObjectiveC
+import SwiftUI
+import Combine
 
-class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUserInterfaceValidations {
+class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUserInterfaceValidations, ObservableObject {
     @IBOutlet var loggingMenuItem: NSMenuItem?
 
     var changingSize = false
@@ -248,6 +250,15 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
         
         view.addSubview(t)
         #endif
+        
+        // 添加 SwiftUI 设置视图的托管
+        let settingsView = SettingsHostingView(
+            showingSettings: self,
+            terminal: self.terminal
+        )
+        settingsView.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
+        settingsView.isHidden = true
+        self.view.addSubview(settingsView)
     }
     
     override func viewWillDisappear() {
@@ -539,6 +550,9 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
         
         // 添加字体大小菜单
         setupFontSizeMenu()
+        
+        // 添加设置菜单
+        setupSettingsMenu()
     }
     
     // 设置字体大小菜单
@@ -581,8 +595,38 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
         }
     }
     
+    // 添加设置菜单
+    func setupSettingsMenu() {
+        if let mainMenu = NSApplication.shared.mainMenu {
+            // 创建设置菜单
+            let settingsMenu = NSMenu(title: "设置")
+            
+            // 创建设置菜单项
+            let settingsMenuItem = NSMenuItem(title: "设置", action: #selector(openSettings), keyEquivalent: ",")
+            settingsMenuItem.keyEquivalentModifierMask = .command
+            
+            // 将设置菜单项添加到设置菜单
+            settingsMenu.addItem(settingsMenuItem)
+            
+            // 创建设置主菜单项
+            let settingsMainMenuItem = NSMenuItem(title: "设置", action: nil, keyEquivalent: "")
+            settingsMainMenuItem.submenu = settingsMenu
+            
+            // 在主题菜单之后插入设置菜单
+            mainMenu.insertItem(settingsMainMenuItem, at: 2)
+        }
+    }
+    
+    // 添加 showingSettings 状态变量
+    @Published var showingSettings = false
+    
+    // 更新 openSettings 方法
+    @objc func openSettings() {
+        self.showingSettings = true
+    }
+    
     // 平滑更改字体大小而不清屏
-    private func changeFontSizeSmoothly(_ size: CGFloat) {
+    func changeFontSizeSmoothly(_ size: CGFloat) {
         print("开始更改字体大小到: \(size)pt")
         
         // 创建新字体
@@ -768,4 +812,201 @@ extension SwiftTerm.Color {
     }
 }
 
+// 为 NSColor 添加亮度计算扩展
+extension NSColor {
+    var brightnessComponent: CGFloat {
+        guard let rgbColor = self.usingColorSpace(.sRGB) else {
+            return 0.5 // 默认中等亮度
+        }
+        
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        rgbColor.getRed(&red, green: &green, blue: &blue, alpha: nil)
+        
+        // 计算亮度 (基于标准亮度公式)
+        return (red * 0.299 + green * 0.587 + blue * 0.114)
+    }
+}
 
+// 添加 SettingsHostingView 类
+class SettingsHostingView: NSView {
+    private var hostingView: NSHostingView<SettingsWrapperView>?
+    private weak var viewController: ViewController?
+    private var terminal: LocalProcessTerminalView
+    
+    init(showingSettings: ViewController, terminal: LocalProcessTerminalView) {
+        self.viewController = showingSettings
+        self.terminal = terminal
+        super.init(frame: .zero)
+        
+        let wrapperView = SettingsWrapperView(
+            showingSettings: showingSettings,
+            terminal: terminal
+        )
+        
+        self.hostingView = NSHostingView(rootView: wrapperView)
+        if let hostingView = self.hostingView {
+            self.addSubview(hostingView)
+            hostingView.frame = self.bounds
+            hostingView.autoresizingMask = [.width, .height]
+        }
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+// 添加 SettingsWrapperView 结构体
+struct SettingsWrapperView: View {
+    @ObservedObject var showingSettings: ViewController
+    var terminal: LocalProcessTerminalView
+    
+    var body: some View {
+        EmptyView()
+            .sheet(isPresented: Binding<Bool>(
+                get: { self.showingSettings.showingSettings },
+                set: { self.showingSettings.showingSettings = $0 }
+            )) {
+                // 使用内部定义的 RunningTerminalConfig
+                TerminalSettingsView(
+                    terminal: self.terminal
+                )
+            }
+    }
+}
+
+// 在 ViewController.swift 中定义设置视图
+struct TerminalSettingsView: View {
+    var terminal: LocalProcessTerminalView
+    @Environment(\.presentationMode) var presentationMode
+    
+    @State var style: String = "Dark"
+    @State var background: String = "Solid"
+    @State var fontName: String = "Menlo"
+    @State var fontSize: CGFloat = 13.0
+    
+    func save() {
+        // 根据主题切换颜色
+        if let viewController = NSApplication.shared.mainWindow?.contentViewController as? ViewController {
+            if style == "Dark" {
+                viewController.switchToDarkTheme()
+            } else {
+                viewController.switchToLightTheme()
+            }
+            
+            // 更新字体
+            viewController.changeFontSizeSmoothly(fontSize)
+        }
+        
+        // 关闭设置窗口
+        self.presentationMode.wrappedValue.dismiss()
+    }
+    
+    var body: some View {
+        VStack {
+            Form {
+                // 主题选择
+                Group {
+                    Text("主题选择")
+                        .font(.headline)
+                    
+                    HStack {
+                        Button(action: {
+                            style = "Dark"
+                        }) {
+                            VStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.black)
+                                    .frame(width: 100, height: 60)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(style == "Dark" ? Color.blue : Color.clear, lineWidth: 3)
+                                    )
+                                Text("暗色主题")
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Button(action: {
+                            style = "Light"
+                        }) {
+                            VStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.white)
+                                    .frame(width: 100, height: 60)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(style == "Light" ? Color.blue : Color.gray, lineWidth: 3)
+                                    )
+                                Text("亮色主题")
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                
+                // 背景样式
+                Group {
+                    Text("背景样式")
+                        .font(.headline)
+                        .padding(.top, 8)
+                    
+                    Picker("背景样式", selection: $background) {
+                        Text("纯色").tag("Solid")
+                        Text("渐变").tag("Gradient")
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+                }
+                
+                // 字体选择
+                Group {
+                    Text("字体选择")
+                        .font(.headline)
+                        .padding(.top, 8)
+                    
+                    Picker("字体", selection: $fontName) {
+                        Text("Menlo").tag("Menlo")
+                        Text("Monaco").tag("Monaco")
+                        Text("Courier").tag("Courier")
+                        Text("SF Mono").tag("SF Mono")
+                    }
+                    .pickerStyle(PopUpButtonPickerStyle())
+                }
+                
+                // 字体大小
+                Group {
+                    Text("字体大小: \(Int(fontSize))")
+                        .font(.headline)
+                        .padding(.top, 8)
+                    
+                    HStack {
+                        Text("10")
+                        Slider(value: $fontSize, in: 10...24, step: 1)
+                        Text("24")
+                    }
+                }
+            }
+            .padding(20)
+
+            HStack {
+                Button("取消") {
+                    self.presentationMode.wrappedValue.dismiss()
+                }
+                Spacer()
+                Button("保存") {
+                    save()
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
+        }
+        .frame(width: 500, height: 400)
+        .onAppear() {
+            // 初始化当前值
+            style = terminal.nativeBackgroundColor.brightnessComponent < 0.5 ? "Dark" : "Light"
+            fontSize = terminal.font.pointSize
+        }
+    }
+}

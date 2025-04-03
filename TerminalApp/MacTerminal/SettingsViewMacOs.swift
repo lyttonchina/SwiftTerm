@@ -1,0 +1,661 @@
+//
+//  SettingsView_macOS.swift
+//  SwiftTermApp
+//
+//  Created by Miguel de Icaza on 2023/2/15.
+//
+
+#if os(macOS)
+import SwiftUI
+import Foundation
+import AppKit
+import SwiftTerm
+
+// 字体大小的 UserDefaults 键
+let fontSizeKey = "fontSize"
+
+// 用于存储用户默认设置的对象
+let defaults = UserDefaults.standard
+
+// 定义终端主题颜色
+struct ThemeColor: Hashable {
+    let name: String
+    let foreground: SwiftTerm.Color
+    let background: SwiftTerm.Color
+    let ansi: [SwiftTerm.Color]
+    let isLight: Bool
+    
+    init(name: String = "Custom", foreground: SwiftTerm.Color, background: SwiftTerm.Color, ansiColors: [SwiftTerm.Color], isLight: Bool) {
+        self.name = name
+        self.foreground = foreground
+        self.background = background
+        self.ansi = ansiColors
+        self.isLight = isLight
+    }
+    
+    // 用于 Hashable 协议
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+    }
+    
+    static func == (lhs: ThemeColor, rhs: ThemeColor) -> Bool {
+        return lhs.name == rhs.name
+    }
+}
+
+// 定义可用的主题列表
+let themes: [ThemeColor] = [
+    ThemeColor(
+        name: "Dark",
+        foreground: SwiftTerm.Color(red: 65535, green: 65535, blue: 65535),
+        background: SwiftTerm.Color(red: 0, green: 0, blue: 0),
+        ansiColors: [
+            SwiftTerm.Color(red: 0, green: 0, blue: 0),
+            SwiftTerm.Color(red: 65535, green: 0, blue: 0),
+            SwiftTerm.Color(red: 0, green: 65535, blue: 0),
+            SwiftTerm.Color(red: 65535, green: 65535, blue: 0),
+            SwiftTerm.Color(red: 0, green: 0, blue: 65535),
+            SwiftTerm.Color(red: 65535, green: 0, blue: 65535),
+            SwiftTerm.Color(red: 0, green: 65535, blue: 65535),
+            SwiftTerm.Color(red: 65535, green: 65535, blue: 65535),
+            SwiftTerm.Color(red: 32768, green: 32768, blue: 32768),
+            SwiftTerm.Color(red: 65535, green: 32768, blue: 32768),
+            SwiftTerm.Color(red: 32768, green: 65535, blue: 32768),
+            SwiftTerm.Color(red: 65535, green: 65535, blue: 32768),
+            SwiftTerm.Color(red: 32768, green: 32768, blue: 65535),
+            SwiftTerm.Color(red: 65535, green: 32768, blue: 65535),
+            SwiftTerm.Color(red: 32768, green: 65535, blue: 65535),
+            SwiftTerm.Color(red: 65535, green: 65535, blue: 65535)
+        ],
+        isLight: false
+    ),
+    ThemeColor(
+        name: "Light",
+        foreground: SwiftTerm.Color(red: 0, green: 0, blue: 0),
+        background: SwiftTerm.Color(red: 65535, green: 65535, blue: 65535),
+        ansiColors: [
+            SwiftTerm.Color(red: 0, green: 0, blue: 0),
+            SwiftTerm.Color(red: 65535, green: 0, blue: 0),
+            SwiftTerm.Color(red: 0, green: 65535, blue: 0),
+            SwiftTerm.Color(red: 65535, green: 65535, blue: 0),
+            SwiftTerm.Color(red: 0, green: 0, blue: 65535),
+            SwiftTerm.Color(red: 65535, green: 0, blue: 65535),
+            SwiftTerm.Color(red: 0, green: 65535, blue: 65535),
+            SwiftTerm.Color(red: 65535, green: 65535, blue: 65535),
+            SwiftTerm.Color(red: 32768, green: 32768, blue: 32768),
+            SwiftTerm.Color(red: 65535, green: 32768, blue: 32768),
+            SwiftTerm.Color(red: 32768, green: 65535, blue: 32768),
+            SwiftTerm.Color(red: 65535, green: 65535, blue: 32768),
+            SwiftTerm.Color(red: 32768, green: 32768, blue: 65535),
+            SwiftTerm.Color(red: 65535, green: 32768, blue: 65535),
+            SwiftTerm.Color(red: 32768, green: 65535, blue: 65535),
+            SwiftTerm.Color(red: 65535, green: 65535, blue: 65535)
+        ],
+        isLight: true
+    )
+]
+
+// 应用设置
+class Settings: ObservableObject {
+    @Published var themeName: String = "Dark" {
+        didSet {
+            defaults.set(themeName, forKey: "theme")
+            // 应用新主题到所有终端窗口
+            updateAllTerminalsTheme()
+        }
+    }
+    
+    @Published var fontName: String = fontNames[0] {
+        didSet {
+            defaults.set(fontName, forKey: "fontName")
+        }
+    }
+    
+    @Published var fontSize: CGFloat = 0 {
+        didSet {
+            defaults.set(fontSize, forKey: fontSizeKey)
+        }
+    }
+    
+    @Published var backgroundStyle: String = "" {
+        didSet {
+            defaults.set(backgroundStyle, forKey: "backgroundStyle")
+        }
+    }
+    
+    func resolveFontSize(_ size: CGFloat) -> CGFloat {
+        if size == 0 {
+            // 兼容低版本macOS
+            return NSFont.systemFontSize
+        } else {
+            return size
+        }
+    }
+    
+    func getTheme(themeName: String? = nil) -> ThemeColor {
+        if let t = themes.first(where: { $0.name == themeName ?? self.themeName }) {
+            return t
+        }
+        return themes[0]
+    }
+    
+    init() {
+        themeName = defaults.string(forKey: "theme") ?? "Dark"
+        fontName = defaults.string(forKey: "fontName") ?? "Menlo"
+        if let fontSizeConfig = defaults.object(forKey: fontSizeKey) as? CGFloat {
+            fontSize = fontSizeConfig == 0 ? 0 : max(5.0, fontSizeConfig)
+        } else {
+            fontSize = 0
+        }
+        backgroundStyle = defaults.string(forKey: "backgroundStyle") ?? "Solid"
+    }
+    
+    // 更新所有终端窗口的主题
+    func updateAllTerminalsTheme() {
+        // 这里可以实现更新所有终端窗口的主题的逻辑
+        // 如果有必要，可以通过 NotificationCenter 发送通知
+    }
+}
+
+var settings = Settings()
+var fontNames: [String] = ["Courier", "Courier New", "Menlo", "SF Mono"]
+
+func term2ui(_ stcolor: SwiftTerm.Color) -> SwiftUI.Color {
+    SwiftUI.Color(red: Double(stcolor.red) / 65535.0,
+                  green: Double(stcolor.green) / 65535.0,
+                  blue: Double(stcolor.blue) / 65535.0)
+}
+
+struct ColorSwatch: View {
+    var color: SwiftTerm.Color
+    var body: some View {
+        Rectangle()
+            .fill(term2ui(color))
+            .frame(width: 11, height: 11)
+            .shadow(radius: 1)
+    }
+}
+
+struct ThemePreview: View {
+    var themeColor: ThemeColor
+    var title: String? = nil
+    var selected: Bool = false
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(term2ui(themeColor.background))
+            VStack(spacing: 6) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title ?? themeColor.name)
+                        .allowsTightening(true)
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(1)
+                        .padding([.leading, .top], 4)
+                        .foregroundColor(term2ui(themeColor.foreground))
+                    Spacer()
+                }.frame(height: 24)
+                HStack(spacing: 5) {
+                    ForEach(0..<7) { x in
+                        ColorSwatch(color: self.themeColor.ansi[x])
+                    }
+                }
+                HStack(spacing: 5) {
+                    ForEach(8..<15) { x in
+                        ColorSwatch(color: self.themeColor.ansi[x])
+                    }
+                }
+            }
+        }
+        .frame(width: 120, height: 70)
+        .border(selected ? Color.black : Color.clear)
+    }
+}
+
+struct FontSize: View {
+    var fontName: String
+    var size: CGFloat
+    @Binding var currentSize: CGFloat
+    @State var caption = "Aa"
+    var body: some View {
+        Text(caption)
+            .background(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(self.currentSize == size ? Color.accentColor : Color.secondary, lineWidth: 2)
+                    .frame(width: caption == "Aa" ? 40 : nil, height: 40)
+            )
+            .font(size == 0 ? .custom(fontName, size: settings.resolveFontSize(0)) : .custom(fontName, size: size))
+            .padding()
+    }
+}
+
+struct ThemeSelector: View {
+    @Binding var themeName: String
+    @State var showDefault = false
+    var callback: (_ themeName: String) -> ()
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack {
+                if showDefault {
+                    ThemePreview(themeColor: settings.getTheme(), title: "Default")
+                        .padding(1)
+                        .border(self.themeName == "" ? Color.accentColor : Color.clear, width: 2)
+                        .onTapGesture {
+                            self.themeName = ""
+                            self.callback("")
+                            settings.updateAllTerminalsTheme()
+                        }
+                }
+                ForEach(themes, id: \.self) { t in
+                    ThemePreview(themeColor: t)
+                        .padding(1)
+                        .border(self.themeName == t.name ? Color.accentColor : Color.clear, width: 2)
+                        .onTapGesture {
+                            self.themeName = t.name
+                            self.callback(t.name)
+                            settings.updateAllTerminalsTheme()
+                        }
+                }
+            }
+        }
+    }
+}
+
+struct FontSelector: View {
+    @Binding var fontName: String
+    
+    func mapName(_ fontName: String) -> String {
+        if fontName == "SourceCodePro-Medium" {
+            return "Source Code Pro"
+        }
+        return fontName
+    }
+    
+    var body: some View {
+        Picker(selection: $fontName, label: Text("Font")) {
+            ForEach(fontNames, id: \.self) { fontName in
+                Text(mapName(fontName))
+                    .font(.custom(fontName, size: 17))
+                    .tag(fontName)
+            }
+        }
+    }
+}
+
+struct FontSizeSelector: View {
+    var fontName: String
+    @Binding var fontSize: CGFloat
+    var fontSizes: [CGFloat] = [8, 10, 11, 12, 14, 18, 24]
+    var body: some View {
+        HStack {
+            Text("Size")
+            ScrollView(.horizontal, showsIndicators: true) {
+                HStack(alignment: .center) {
+                    FontSize(fontName: self.fontName, size: 0, currentSize: self.$fontSize, caption: " System ")
+                        .onTapGesture {
+                            self.fontSize = 0
+                        }
+                    ForEach(fontSizes, id: \.self) { size in
+                        FontSize(fontName: self.fontName, size: size, currentSize: self.$fontSize)
+                            .onTapGesture {
+                                self.fontSize = size
+                            }
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct BackgroundSelector: View {
+    @Binding var backgroundStyle: String
+    @State var showDefault = false
+    
+    var body: some View {
+        Picker(selection: $backgroundStyle, label: Text("Background Style")) {
+            Text("Solid").tag("Solid")
+            Text("Gradient").tag("Gradient")
+        }
+        .pickerStyle(SegmentedPickerStyle())
+    }
+}
+
+struct SettingsViewCore: View {
+    @Binding var themeName: String
+    @Binding var fontName: String
+    @Binding var fontSize: CGFloat
+    @Binding var backgroundStyle: String
+    
+    var body: some View {
+        Form {
+            Section(header: Text("Appearance")) {
+                VStack(alignment: .leading) {
+                    Text("Color Theme")
+                    ThemeSelector(themeName: $themeName) {
+                        settings.themeName = $0
+                    }
+                }
+                FontSelector(fontName: $fontName)
+                FontSizeSelector(fontName: fontName, fontSize: $fontSize)
+                BackgroundSelector(backgroundStyle: $backgroundStyle)
+            }
+        }
+    }
+}
+
+struct SettingsView: View {
+    @ObservedObject var gset = settings
+    
+    var body: some View {
+        SettingsViewCore(themeName: $gset.themeName,
+                         fontName: $gset.fontName,
+                         fontSize: $gset.fontSize,
+                         backgroundStyle: $gset.backgroundStyle)
+    }
+}
+
+let themeBuiltinDark = """
+#define Ansi_0_Color #000000
+#define Ansi_1_Color #bb0000
+#define Ansi_10_Color #55ff55
+#define Ansi_11_Color #ffff55
+#define Ansi_12_Color #5555ff
+#define Ansi_13_Color #ff55ff
+#define Ansi_14_Color #55ffff
+#define Ansi_15_Color #ffffff
+#define Ansi_2_Color #00bb00
+#define Ansi_3_Color #bbbb00
+#define Ansi_4_Color #0000bb
+#define Ansi_5_Color #bb00bb
+#define Ansi_6_Color #00bbbb
+#define Ansi_7_Color #bbbbbb
+#define Ansi_8_Color #555555
+#define Ansi_9_Color #ff5555
+#define Background_Color #000000
+#define Badge_Color #ff0000
+#define Bold_Color #ffffff
+#define Cursor_Color #bbbbbb
+#define Cursor_Guide_Color #a6e8ff
+#define Cursor_Text_Color #ffffff
+#define Foreground_Color #bbbbbb
+#define Link_Color #0645ad
+#define Selected_Text_Color #000000
+#define Selection_Color #b5d5ff
+"""
+
+let themeBuiltinLight = """
+#define Ansi_0_Color #000000
+#define Ansi_1_Color #bb0000
+#define Ansi_10_Color #55ff55
+#define Ansi_11_Color #ffff55
+#define Ansi_12_Color #5555ff
+#define Ansi_13_Color #ff55ff
+#define Ansi_14_Color #55ffff
+#define Ansi_15_Color #ffffff
+#define Ansi_2_Color #00bb00
+#define Ansi_3_Color #bbbb00
+#define Ansi_4_Color #0000bb
+#define Ansi_5_Color #bb00bb
+#define Ansi_6_Color #00bbbb
+#define Ansi_7_Color #bbbbbb
+#define Ansi_8_Color #555555
+#define Ansi_9_Color #ff5555
+#define Background_Color #ffffff
+#define Badge_Color #ff0000
+#define Bold_Color #000000
+#define Cursor_Color #000000
+#define Cursor_Guide_Color #a6e8ff
+#define Cursor_Text_Color #ffffff
+#define Foreground_Color #000000
+#define Link_Color #0645ad
+#define Selected_Text_Color #000000
+#define Selection_Color #b5d5ff
+"""
+
+let themeSolarizedDark = """
+#define Ansi_0_Color #073642
+#define Ansi_1_Color #dc322f
+#define Ansi_10_Color #586e75
+#define Ansi_11_Color #657b83
+#define Ansi_12_Color #839496
+#define Ansi_13_Color #6c71c4
+#define Ansi_14_Color #93a1a1
+#define Ansi_15_Color #fdf6e3
+#define Ansi_2_Color #859900
+#define Ansi_3_Color #b58900
+#define Ansi_4_Color #268bd2
+#define Ansi_5_Color #d33682
+#define Ansi_6_Color #2aa198
+#define Ansi_7_Color #eee8d5
+#define Ansi_8_Color #002b36
+#define Ansi_9_Color #cb4b16
+#define Background_Color #002b36
+#define Badge_Color #ff2600
+#define Bold_Color #93a1a1
+#define Cursor_Color #839496
+#define Cursor_Guide_Color #b3ecff
+#define Cursor_Text_Color #073642
+#define Foreground_Color #839496
+#define Link_Color #005cbb
+#define Selected_Text_Color #93a1a1
+#define Selection_Color #073642
+"""
+
+let themeSolarizedLight = """
+#define Ansi_0_Color #073642
+#define Ansi_1_Color #dc322f
+#define Ansi_10_Color #586e75
+#define Ansi_11_Color #657b83
+#define Ansi_12_Color #839496
+#define Ansi_13_Color #6c71c4
+#define Ansi_14_Color #93a1a1
+#define Ansi_15_Color #fdf6e3
+#define Ansi_2_Color #859900
+#define Ansi_3_Color #b58900
+#define Ansi_4_Color #268bd2
+#define Ansi_5_Color #d33682
+#define Ansi_6_Color #2aa198
+#define Ansi_7_Color #eee8d5
+#define Ansi_8_Color #002b36
+#define Ansi_9_Color #cb4b16
+#define Background_Color #ffffff
+#define Badge_Color #ff2600
+#define Bold_Color #586e75
+#define Cursor_Color #657b83
+#define Cursor_Guide_Color #b3ecff
+#define Cursor_Text_Color #eee8d5
+#define Foreground_Color #657b83
+#define Link_Color #005cbb
+#define Selected_Text_Color #586e75
+#define Selection_Color #eee8d5
+
+"""
+let themeMaterial = """
+#define Ansi_0_Color #212121
+#define Ansi_1_Color #b7141f
+#define Ansi_10_Color #7aba3a
+#define Ansi_11_Color #ffea2e
+#define Ansi_12_Color #54a4f3
+#define Ansi_13_Color #aa4dbc
+#define Ansi_14_Color #26bbd1
+#define Ansi_15_Color #d9d9d9
+#define Ansi_2_Color #457b24
+#define Ansi_3_Color #f6981e
+#define Ansi_4_Color #134eb2
+#define Ansi_5_Color #560088
+#define Ansi_6_Color #0e717c
+#define Ansi_7_Color #efefef
+#define Ansi_8_Color #424242
+#define Ansi_9_Color #e83b3f
+#define Background_Color #eaeaea
+#define Bold_Color #b7141f
+#define Cursor_Color #16afca
+#define Cursor_Text_Color #2e2e2d
+#define Foreground_Color #232322
+#define Selected_Text_Color #4e4e4e
+#define Selection_Color #c2c2c2
+"""
+
+let themeOcean = """
+#define Ansi_0_Color #000000
+#define Ansi_1_Color #990000
+#define Ansi_10_Color #00d900
+#define Ansi_11_Color #e5e500
+#define Ansi_12_Color #0000ff
+#define Ansi_13_Color #e500e5
+#define Ansi_14_Color #00e5e5
+#define Ansi_15_Color #e5e5e5
+#define Ansi_2_Color #00a600
+#define Ansi_3_Color #999900
+#define Ansi_4_Color #0000b2
+#define Ansi_5_Color #b200b2
+#define Ansi_6_Color #00a6b2
+#define Ansi_7_Color #bfbfbf
+#define Ansi_8_Color #666666
+#define Ansi_9_Color #e50000
+#define Background_Color #224fbc
+#define Bold_Color #ffffff
+#define Cursor_Color #7f7f7f
+#define Cursor_Text_Color #ffffff
+#define Foreground_Color #ffffff
+#define Selected_Text_Color #ffffff
+#define Selection_Color #216dff
+
+"""
+
+let themeAdventureTime = """
+#define Ansi_0_Color #050404
+#define Ansi_1_Color #bd0013
+#define Ansi_10_Color #9eff6e
+#define Ansi_11_Color #efc11a
+#define Ansi_12_Color #1997c6
+#define Ansi_13_Color #9b5953
+#define Ansi_14_Color #c8faf4
+#define Ansi_15_Color #f6f5fb
+#define Ansi_2_Color #4ab118
+#define Ansi_3_Color #e7741e
+#define Ansi_4_Color #0f4ac6
+#define Ansi_5_Color #665993
+#define Ansi_6_Color #70a598
+#define Ansi_7_Color #f8dcc0
+#define Ansi_8_Color #4e7cbf
+#define Ansi_9_Color #fc5f5a
+#define Background_Color #1f1d45
+#define Bold_Color #bd0013
+#define Cursor_Color #efbf38
+#define Cursor_Text_Color #08080a
+#define Foreground_Color #f8dcc0
+#define Selected_Text_Color #f3d9c4
+#define Selection_Color #706b4e
+"""
+
+let themePro = """
+#define Ansi_0_Color #000000
+#define Ansi_1_Color #990000
+#define Ansi_10_Color #00d900
+#define Ansi_11_Color #e5e500
+#define Ansi_12_Color #0000ff
+#define Ansi_13_Color #e500e5
+#define Ansi_14_Color #00e5e5
+#define Ansi_15_Color #e5e5e5
+#define Ansi_2_Color #00a600
+#define Ansi_3_Color #999900
+#define Ansi_4_Color #2009db
+#define Ansi_5_Color #b200b2
+#define Ansi_6_Color #00a6b2
+#define Ansi_7_Color #bfbfbf
+#define Ansi_8_Color #666666
+#define Ansi_9_Color #e50000
+#define Background_Color #000000
+#define Bold_Color #ffffff
+#define Cursor_Color #4d4d4d
+#define Cursor_Text_Color #ffffff
+#define Foreground_Color #f2f2f2
+#define Selected_Text_Color #000000
+#define Selection_Color #414141
+"""
+
+let themeDjango = """
+#define Ansi_0_Color #000000
+#define Ansi_1_Color #fd6209
+#define Ansi_10_Color #73da70
+#define Ansi_11_Color #ffff94
+#define Ansi_12_Color #568264
+#define Ansi_13_Color #ffffff
+#define Ansi_14_Color #cfffd1
+#define Ansi_15_Color #ffffff
+#define Ansi_2_Color #41a83e
+#define Ansi_3_Color #ffe862
+#define Ansi_4_Color #245032
+#define Ansi_5_Color #f8f8f8
+#define Ansi_6_Color #9df39f
+#define Ansi_7_Color #ffffff
+#define Ansi_8_Color #323232
+#define Ansi_9_Color #ff943b
+#define Background_Color #0b2f20
+#define Bold_Color #f8f8f8
+#define Cursor_Color #336442
+#define Cursor_Text_Color #f8f8f8
+#define Foreground_Color #f8f8f8
+#define Selected_Text_Color #f8f8f8
+#define Selection_Color #245032
+"""
+
+let themeTangoDark = """
+#define Ansi_0_Color #000000
+#define Ansi_1_Color #cc0000
+#define Ansi_10_Color #8ae234
+#define Ansi_11_Color #fce94f
+#define Ansi_12_Color #729fcf
+#define Ansi_13_Color #ad7fa8
+#define Ansi_14_Color #34e2e2
+#define Ansi_15_Color #eeeeec
+#define Ansi_2_Color #4e9a06
+#define Ansi_3_Color #c4a000
+#define Ansi_4_Color #3465a4
+#define Ansi_5_Color #75507b
+#define Ansi_6_Color #06989a
+#define Ansi_7_Color #d3d7cf
+#define Ansi_8_Color #555753
+#define Ansi_9_Color #ef2929
+#define Background_Color #000000
+#define Badge_Color #ff0000
+#define Bold_Color #ffffff
+#define Cursor_Color #ffffff
+#define Cursor_Guide_Color #a6e8ff
+#define Cursor_Text_Color #000000
+#define Foreground_Color #ffffff
+#define Link_Color #0645ad
+#define Selected_Text_Color #000000
+#define Selection_Color #b5d5ff
+"""
+
+let themeTangoLight = """
+#define Ansi_0_Color #000000
+#define Ansi_1_Color #cc0000
+#define Ansi_10_Color #8ae234
+#define Ansi_11_Color #fce94f
+#define Ansi_12_Color #729fcf
+#define Ansi_13_Color #ad7fa8
+#define Ansi_14_Color #34e2e2
+#define Ansi_15_Color #eeeeec
+#define Ansi_2_Color #4e9a06
+#define Ansi_3_Color #c4a000
+#define Ansi_4_Color #3465a4
+#define Ansi_5_Color #75507b
+#define Ansi_6_Color #06989a
+#define Ansi_7_Color #d3d7cf
+#define Ansi_8_Color #555753
+#define Ansi_9_Color #ef2929
+#define Background_Color #ffffff
+#define Badge_Color #ff0000
+#define Bold_Color #000000
+#define Cursor_Color #000000
+#define Cursor_Guide_Color #a6e8ff
+#define Cursor_Text_Color #ffffff
+#define Foreground_Color #000000
+#define Link_Color #0645ad
+#define Selected_Text_Color #000000
+#define Selection_Color #b5d5ff
+
+"""
+#endif

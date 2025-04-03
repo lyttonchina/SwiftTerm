@@ -3,10 +3,12 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 52;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3697AE372D9F3DD0009170AC /* ConfigurableTerminalMacOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3697AE362D9F3DD0009170AC /* ConfigurableTerminalMacOs.swift */; };
+		3697AE392D9F3E93009170AC /* SettingsViewMacOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3697AE382D9F3E93009170AC /* SettingsViewMacOs.swift */; };
 		49C75E442419C7E9008977FE /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49C75E432419C7E9008977FE /* ViewController.swift */; };
 		49C75E462419C7E9008977FE /* Document.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49C75E452419C7E9008977FE /* Document.swift */; };
 		49C75E482419C7E9008977FE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 49C75E472419C7E9008977FE /* Assets.xcassets */; };
@@ -17,6 +19,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		3697AE362D9F3DD0009170AC /* ConfigurableTerminalMacOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurableTerminalMacOs.swift; sourceTree = "<group>"; };
+		3697AE382D9F3E93009170AC /* SettingsViewMacOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewMacOs.swift; sourceTree = "<group>"; };
 		4936D21C24512A98005CEE27 /* SwiftSH.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftSH.framework; path = ../../../../private/tmp/SwiftSH.framework; sourceTree = "<group>"; };
 		4936D22E2451386F005CEE27 /* SwiftSH.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftSH.framework; path = SwiftSH.binaries/SwiftSH.framework; sourceTree = "<group>"; };
 		49C75E3F2419C7E9008977FE /* MacTerminal.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacTerminal.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -77,6 +81,8 @@
 			children = (
 				49F8A83F24390F5200EF9C97 /* AppDelegate.swift */,
 				49C75E432419C7E9008977FE /* ViewController.swift */,
+				3697AE382D9F3E93009170AC /* SettingsViewMacOs.swift */,
+				3697AE362D9F3DD0009170AC /* ConfigurableTerminalMacOs.swift */,
 				49C75E452419C7E9008977FE /* Document.swift */,
 				49C75E472419C7E9008977FE /* Assets.xcassets */,
 				49C75E492419C7E9008977FE /* Main.storyboard */,
@@ -164,8 +170,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				49F8A84024390F5200EF9C97 /* AppDelegate.swift in Sources */,
+				3697AE392D9F3E93009170AC /* SettingsViewMacOs.swift in Sources */,
 				49C75E442419C7E9008977FE /* ViewController.swift in Sources */,
 				49E855272427A3B400A3C3AB /* DebugViewController.swift in Sources */,
+				3697AE372D9F3DD0009170AC /* ConfigurableTerminalMacOs.swift in Sources */,
 				49C75E462419C7E9008977FE /* Document.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

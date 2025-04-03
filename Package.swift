@@ -12,7 +12,7 @@ let package = Package(
     ],
     products: [
         .executable(name: "SwiftTermFuzz", targets: ["SwiftTermFuzz"]),
-        .executable(name: "ThemeSwitchExample", targets: ["ThemeSwitchExample"]),
+        //.executable(name: "ThemeSwitchExample", targets: ["ThemeSwitchExample"]),
         //.executable(name: "CaptureOutput", targets: ["CaptureOutput"]),
         .library(
             name: "SwiftTerm",
@@ -31,11 +31,11 @@ let package = Package(
             dependencies: ["SwiftTerm"],
             path: "Sources/SwiftTermFuzz"
         ),
-        .executableTarget (
-            name: "ThemeSwitchExample",
-            dependencies: ["SwiftTerm"],
-            path: "Examples/ThemeSwitchExample"
-        ),
+//        .executableTarget (
+//            name: "ThemeSwitchExample",
+//            dependencies: ["SwiftTerm"],
+//            path: "Examples/ThemeSwitchExample"
+//        ),
 //        .target (
 //            name: "CaptureOutput",
 //            dependencies: ["SwiftTerm"],
