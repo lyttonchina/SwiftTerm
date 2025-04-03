@@ -35,6 +35,251 @@ extension TerminalView {
         queuePendingDisplay()
     }
     
+    /// 主题颜色配置结构
+    public class ThemeColor {
+        public let ansi: [Color]          // ANSI颜色集
+        public let foreground: Color      // 前景色
+        public let background: Color      // 背景色
+        public let cursor: Color          // 光标色
+        public let selectionColor: Color  // 选中文本背景色
+        public let isLight: Bool          // 是否是亮色主题
+        
+        /// 从ANSI颜色集构建主题
+        /// - Parameters:
+        ///   - ansiColors: ANSI颜色集合(至少16种颜色)
+        ///   - isLight: 是否是亮色主题，默认为false
+        public init(ansiColors: [Color], isLight: Bool = false) {
+            self.ansi = ansiColors
+            self.foreground = ansiColors[7]  // 前景色通常是第7个
+            self.background = ansiColors[0]  // 背景色通常是第0个
+            self.cursor = ansiColors[7]      // 光标色默认使用前景色
+            self.selectionColor = Color(red: 50, green: 100, blue: 200) // 蓝色选择背景
+            self.isLight = isLight
+        }
+        
+        /// 完整主题构造函数
+        /// - Parameters:
+        ///   - ansiColors: ANSI颜色集合
+        ///   - foreground: 前景色
+        ///   - background: 背景色
+        ///   - cursor: 光标色
+        ///   - selectionColor: 选中文本背景色
+        ///   - isLight: 是否是亮色主题
+        public init(ansiColors: [Color], foreground: Color, background: Color, 
+                    cursor: Color, selectionColor: Color, isLight: Bool = false) {
+            self.ansi = ansiColors
+            self.foreground = foreground
+            self.background = background
+            self.cursor = cursor
+            self.selectionColor = selectionColor
+            self.isLight = isLight
+        }
+    }
+    
+    /// 平滑安装ANSI颜色，而不清空屏幕
+    /// - Parameter colors: 要安装的颜色数组
+    /// - Note: 这是 installColors 的增强版，不会清空屏幕
+    public func smoothInstallColors(_ colors: [Color]) {
+        // 保存当前状态
+        setBufferPreservation(true)
+        
+        // 仅更新颜色，不清空屏幕
+        updateColorsOnly(colors)
+        
+        // 在下一轮事件循环中重置保留状态
+        DispatchQueue.main.async { [weak self] in
+            self?.setBufferPreservation(false)
+        }
+    }
+    
+    /// 应用主题并平滑切换，不清空终端内容
+    /// - Parameter theme: 主题颜色配置
+    public func applyTheme(theme: ThemeColor) {
+        print("平滑切换主题")
+        
+        // 打印主题信息
+        print("===== 主题信息 =====")
+        print("背景色: R:\(theme.background.red), G:\(theme.background.green), B:\(theme.background.blue)")
+        print("前景色: R:\(theme.foreground.red), G:\(theme.foreground.green), B:\(theme.foreground.blue)")
+        print("光标色: R:\(theme.cursor.red), G:\(theme.cursor.green), B:\(theme.cursor.blue)")
+        print("ANSI颜色集: \(theme.ansi.count)个颜色")
+        print("===================")
+        
+        print("开始应用主题...")
+        
+        // 保存当前状态，防止清屏
+        setBufferPreservation(true)
+        
+        // 1. 设置ANSI颜色集，但不清空屏幕
+        print("设置ANSI颜色集...")
+        updateColorsOnly(theme.ansi)
+        
+        // 2. 设置终端内部颜色
+        print("设置终端内部颜色...")
+        terminal.backgroundColor = theme.background
+        terminal.foregroundColor = theme.foreground
+        
+        // 3. 设置原生颜色
+        print("设置原生背景色和前景色...")
+        #if os(macOS)
+        // 对亮色主题进行特殊处理
+        if theme.isLight {
+            // 亮色主题
+            self.nativeBackgroundColor = NSColor(calibratedRed: 1.0, green: 1.0, blue: 1.0, alpha: 1.0)
+            self.nativeForegroundColor = NSColor(calibratedRed: 0.0, green: 0.0, blue: 0.0, alpha: 1.0)
+        } else {
+            // 暗色主题
+            self.nativeBackgroundColor = NSColor(calibratedRed: 0.0, green: 0.0, blue: 0.0, alpha: 1.0)
+            self.nativeForegroundColor = NSColor(calibratedRed: 1.0, green: 1.0, blue: 1.0, alpha: 1.0)
+        }
+        
+        // 设置光标颜色
+        let cursorRed = CGFloat(theme.cursor.red) / 65535.0
+        let cursorGreen = CGFloat(theme.cursor.green) / 65535.0
+        let cursorBlue = CGFloat(theme.cursor.blue) / 65535.0
+        let cursorColor = NSColor(
+            calibratedRed: cursorRed,
+            green: cursorGreen,
+            blue: cursorBlue,
+            alpha: 1.0
+        )
+        self.caretColor = cursorColor
+        
+        // 设置选择颜色
+        if self.responds(to: NSSelectorFromString("_selectedTextBackgroundColor")) {
+            let selectionRed = CGFloat(theme.selectionColor.red) / 65535.0
+            let selectionGreen = CGFloat(theme.selectionColor.green) / 65535.0
+            let selectionBlue = CGFloat(theme.selectionColor.blue) / 65535.0
+            let selectionNSColor = NSColor(
+                calibratedRed: selectionRed,
+                green: selectionGreen,
+                blue: selectionBlue,
+                alpha: 0.5
+            )
+            self.setValue(selectionNSColor, forKey: "_selectedTextBackgroundColor")
+        }
+        #elseif os(iOS) || os(visionOS)
+        // iOS实现
+        if theme.isLight {
+            self.nativeBackgroundColor = UIColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0)
+            self.nativeForegroundColor = UIColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 1.0)
+        } else {
+            self.nativeBackgroundColor = UIColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 1.0)
+            self.nativeForegroundColor = UIColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0)
+        }
+        
+        // 设置光标颜色
+        let cursorRed = CGFloat(theme.cursor.red) / 65535.0
+        let cursorGreen = CGFloat(theme.cursor.green) / 65535.0
+        let cursorBlue = CGFloat(theme.cursor.blue) / 65535.0
+        self.caretColor = UIColor(red: cursorRed, green: cursorGreen, blue: cursorBlue, alpha: 1.0)
+        
+        // 设置选择颜色
+        let selectionRed = CGFloat(theme.selectionColor.red) / 65535.0
+        let selectionGreen = CGFloat(theme.selectionColor.green) / 65535.0
+        let selectionBlue = CGFloat(theme.selectionColor.blue) / 65535.0
+        self.selectedTextBackgroundColor = UIColor(
+            red: selectionRed,
+            green: selectionGreen,
+            blue: selectionBlue,
+            alpha: 0.5
+        )
+        #endif
+        
+        // 强制重绘
+        print("强制重绘视图...")
+        self.setNeedsDisplay(self.bounds)
+        
+        // 重置保留状态
+        DispatchQueue.main.async { [weak self] in
+            self?.setBufferPreservation(false)
+        }
+        
+        print("主题已应用完成")
+    }
+    
+    /// 创建标准暗色主题
+    /// - Returns: 预配置的暗色主题
+    public static func createDarkTheme() -> ThemeColor {
+        let darkTheme: [Color] = [
+            // 黑色 (背景)
+            Color(red: 0, green: 0, blue: 0),
+            // 红色
+            Color(red: 170, green: 0, blue: 0),
+            // 绿色
+            Color(red: 0, green: 170, blue: 0),
+            // 黄色
+            Color(red: 170, green: 85, blue: 0),
+            // 蓝色
+            Color(red: 0, green: 0, blue: 170),
+            // 洋红
+            Color(red: 170, green: 0, blue: 170),
+            // 青色
+            Color(red: 0, green: 170, blue: 170),
+            // 白色 (前景)
+            Color(red: 170, green: 170, blue: 170),
+            // 亮黑
+            Color(red: 85, green: 85, blue: 85),
+            // 亮红
+            Color(red: 255, green: 85, blue: 85),
+            // 亮绿
+            Color(red: 85, green: 255, blue: 85),
+            // 亮黄
+            Color(red: 255, green: 255, blue: 85),
+            // 亮蓝
+            Color(red: 85, green: 85, blue: 255),
+            // 亮洋红
+            Color(red: 255, green: 85, blue: 255),
+            // 亮青
+            Color(red: 85, green: 255, blue: 255),
+            // 亮白
+            Color(red: 255, green: 255, blue: 255)
+        ]
+        
+        return ThemeColor(ansiColors: darkTheme, isLight: false)
+    }
+    
+    /// 创建标准亮色主题
+    /// - Returns: 预配置的亮色主题
+    public static func createLightTheme() -> ThemeColor {
+        let lightTheme: [Color] = [
+            // 白色 (背景) - 确保值为有效的白色
+            Color(red: 65535, green: 65535, blue: 65535),
+            // 红色
+            Color(red: 170, green: 0, blue: 0),
+            // 绿色
+            Color(red: 0, green: 170, blue: 0),
+            // 黄色
+            Color(red: 170, green: 85, blue: 0),
+            // 蓝色
+            Color(red: 0, green: 0, blue: 170),
+            // 洋红
+            Color(red: 170, green: 0, blue: 170),
+            // 青色
+            Color(red: 0, green: 170, blue: 170),
+            // 黑色 (前景) - 确保值为有效的黑色
+            Color(red: 0, green: 0, blue: 0),
+            // 亮黑
+            Color(red: 85, green: 85, blue: 85),
+            // 亮红
+            Color(red: 255, green: 85, blue: 85),
+            // 亮绿
+            Color(red: 85, green: 255, blue: 85),
+            // 亮黄
+            Color(red: 255, green: 255, blue: 85),
+            // 亮蓝
+            Color(red: 85, green: 85, blue: 255),
+            // 亮洋红
+            Color(red: 255, green: 85, blue: 255),
+            // 亮青
+            Color(red: 85, green: 255, blue: 255),
+            // 亮白
+            Color(red: 255, green: 255, blue: 255)
+        ]
+        
+        return ThemeColor(ansiColors: lightTheme, isLight: true)
+    }
+    
     /// 更新默认前景色
     /// - Parameter color: 新的前景色
     public func updateForegroundColor(_ color: Color) {
@@ -309,6 +554,18 @@ extension TerminalView {
     // 在装载时自动执行
     public static func enableThemeSwitchImprovement() {
         _ = swizzleImplementation
+    }
+}
+
+// 颜色亮度扩展
+extension Color {
+    /// 计算颜色的亮度值
+    /// - Returns: 0-1范围内的亮度值，0为最暗，1为最亮
+    public var brightness: CGFloat {
+        let r = CGFloat(red) / 65535.0
+        let g = CGFloat(green) / 65535.0
+        let b = CGFloat(blue) / 65535.0
+        return (r * 0.299 + g * 0.587 + b * 0.114)
     }
 }
 
