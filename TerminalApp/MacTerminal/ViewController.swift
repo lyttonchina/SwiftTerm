@@ -20,11 +20,103 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
     var postedTitle: String = ""
     var postedDirectory: String? = nil
     
-    // 定义主题 - 使用库提供的实现
-    lazy var darkTheme = TerminalView.createDarkTheme()
-    lazy var lightTheme = TerminalView.createLightTheme()
+    // 定义主题
+    lazy var darkTheme: [SwiftTerm.Color] = [
+        // 黑色 (背景)
+        SwiftTerm.Color(red: 0, green: 0, blue: 0),
+        // 红色
+        SwiftTerm.Color(red: 170, green: 0, blue: 0),
+        // 绿色
+        SwiftTerm.Color(red: 0, green: 170, blue: 0),
+        // 黄色
+        SwiftTerm.Color(red: 170, green: 85, blue: 0),
+        // 蓝色
+        SwiftTerm.Color(red: 0, green: 0, blue: 170),
+        // 洋红
+        SwiftTerm.Color(red: 170, green: 0, blue: 170),
+        // 青色
+        SwiftTerm.Color(red: 0, green: 170, blue: 170),
+        // 白色 (前景)
+        SwiftTerm.Color(red: 170, green: 170, blue: 170),
+        // 亮黑
+        SwiftTerm.Color(red: 85, green: 85, blue: 85),
+        // 亮红
+        SwiftTerm.Color(red: 255, green: 85, blue: 85),
+        // 亮绿
+        SwiftTerm.Color(red: 85, green: 255, blue: 85),
+        // 亮黄
+        SwiftTerm.Color(red: 255, green: 255, blue: 85),
+        // 亮蓝
+        SwiftTerm.Color(red: 85, green: 85, blue: 255),
+        // 亮洋红
+        SwiftTerm.Color(red: 255, green: 85, blue: 255),
+        // 亮青
+        SwiftTerm.Color(red: 85, green: 255, blue: 255),
+        // 亮白
+        SwiftTerm.Color(red: 255, green: 255, blue: 255)
+    ]
     
+    lazy var lightTheme: [SwiftTerm.Color] = [
+        // 白色 (背景) - 确保值为有效的白色
+        SwiftTerm.Color(red: 65535, green: 65535, blue: 65535),
+        // 红色
+        SwiftTerm.Color(red: 170, green: 0, blue: 0),
+        // 绿色
+        SwiftTerm.Color(red: 0, green: 170, blue: 0),
+        // 黄色
+        SwiftTerm.Color(red: 170, green: 85, blue: 0),
+        // 蓝色
+        SwiftTerm.Color(red: 0, green: 0, blue: 170),
+        // 洋红
+        SwiftTerm.Color(red: 170, green: 0, blue: 170),
+        // 青色
+        SwiftTerm.Color(red: 0, green: 170, blue: 170),
+        // 黑色 (前景) - 确保值为有效的黑色
+        SwiftTerm.Color(red: 0, green: 0, blue: 0),
+        // 亮黑
+        SwiftTerm.Color(red: 85, green: 85, blue: 85),
+        // 亮红
+        SwiftTerm.Color(red: 255, green: 85, blue: 85),
+        // 亮绿
+        SwiftTerm.Color(red: 85, green: 255, blue: 85),
+        // 亮黄
+        SwiftTerm.Color(red: 255, green: 255, blue: 85),
+        // 亮蓝
+        SwiftTerm.Color(red: 85, green: 85, blue: 255),
+        // 亮洋红
+        SwiftTerm.Color(red: 255, green: 85, blue: 255),
+        // 亮青
+        SwiftTerm.Color(red: 85, green: 255, blue: 255),
+        // 亮白
+        SwiftTerm.Color(red: 255, green: 255, blue: 255)
+    ]
+
+    // 定义主题结构
+    class ThemeColor {
+        let ansi: [SwiftTerm.Color]      // ANSI颜色集
+        let foreground: SwiftTerm.Color  // 前景色
+        let background: SwiftTerm.Color  // 背景色
+        let cursor: SwiftTerm.Color      // 光标色
+        let selectionColor: SwiftTerm.Color // 选中文本背景色
+        let isLight: Bool                // 是否是亮色主题
+        
+        // 从ANSI颜色集构建主题
+        init(ansiColors: [SwiftTerm.Color], isLight: Bool = false) {
+            self.ansi = ansiColors
+            self.foreground = ansiColors[7]  // 前景色通常是第7个
+            self.background = ansiColors[0]  // 背景色通常是第0个
+            self.cursor = ansiColors[7]      // 光标色默认使用前景色
+            self.selectionColor = SwiftTerm.Color(red: 50, green: 100, blue: 200) // 蓝色选择背景
+            self.isLight = isLight
+        }
+    }
+
     func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {
+
+
+        print("sizeChanged: \(newCols) \(newRows)")
+        print("changingSize: \(changingSize)")
+
         if changingSize {
             return
         }
@@ -496,33 +588,30 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
         // 创建新字体
         let newFont = NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
         
-        // 安全转换确保存在TerminalView
-        if let terminalView = terminal as? SwiftTerm.TerminalView {
-            // 使用不清屏的字体设置方法
-            terminalView.setFont(newFont, clearScreen: false)
-        } else {
-            // 回退方案
-            terminal.font = newFont
-        }
+        // 停用动画以减少闪烁
+        NSAnimationContext.beginGrouping()
+        NSAnimationContext.current.duration = 0
         
-        // 确保视图范围大小正确
-        if !changingSize {
-            changingSize = true
-            // 使用getOptimalFrameSize来基于新字体获取正确大小
-            var newFrameSize = terminal.getOptimalFrameSize()
-            let windowFrame = view.window!.frame
-            
-            // 保持窗口宽度不变，只调整高度
-            newFrameSize = CGRect(
-                x: windowFrame.minX,
-                y: windowFrame.minY,
-                width: windowFrame.width,
-                height: windowFrame.height - view.frame.height + newFrameSize.height
-            )
-            
-            view.window?.setFrame(newFrameSize, display: true, animate: false)
-            changingSize = false
-        }
+        // 关键：设置changingSize标志为true，阻止sizeChanged方法调整窗口大小
+        changingSize = true
+        
+        // 更新字体而不清屏
+        terminal.setFont(newFont, clearScreen: false)
+        
+        // 调整terminal frame以确保正确的行列计算
+        // 这会触发processSizeChange方法，但因为changingSize=true，sizeChanged不会调整窗口
+        terminal.frame = view.frame
+        
+        // 强制重绘
+        terminal.needsDisplay = true
+        
+        // 重置标志
+        changingSize = false
+        
+        // 结束动画组
+        NSAnimationContext.endGrouping()
+        
+        print("字体大小更改完成：\(size)pt")
     }
 
     // 设置自定义字体大小
@@ -531,41 +620,141 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
         changeFontSizeSmoothly(fontSize)
     }
     
+    // 定义深色主题
+    var darkThemeColor: ThemeColor {
+        return ThemeColor(ansiColors: darkTheme, isLight: false)
+    }
+    
+    // 定义浅色主题
+    var lightThemeColor: ThemeColor {
+        return ThemeColor(ansiColors: lightTheme, isLight: true)
+    }
+    
     // 切换到暗色主题
     @objc func switchToDarkTheme() {
         print("平滑切换到暗色主题")
-        // 安全转换确保存在TerminalView
-        if let terminalView = terminal as? SwiftTerm.TerminalView {
-            // 使用主题切换API
-            terminalView.applyTheme(theme: darkTheme)
-        }
+        safeApplyTheme(theme: darkThemeColor)
     }
     
     // 切换到亮色主题
     @objc func switchToLightTheme() {
         print("平滑切换到亮色主题")
-        // 安全转换确保存在TerminalView
-        if let terminalView = terminal as? SwiftTerm.TerminalView {
-            // 使用主题切换API
-            terminalView.applyTheme(theme: lightTheme)
-        }
+        safeApplyTheme(theme: lightThemeColor)
     }
     
     // 传统方式切换主题（会有闪烁）
     @objc func switchThemeTraditional() {
         print("使用传统方式切换主题（会看到闪烁）")
-        #if os(macOS)
-        let isDarkBackground = terminal.nativeBackgroundColor.brightnessComponent > 0.5
-        #else
-        let isDarkBackground = terminal.backgroundColor.brightness > 0.5
-        #endif
-        
-        // 使用标准installColors方法（会导致闪烁）
-        if isDarkBackground {
-            terminal.installColors(darkTheme.ansi)
+        if terminal.nativeBackgroundColor.brightnessComponent > 0.5 {
+            terminal.installColors(darkTheme)
         } else {
-            terminal.installColors(lightTheme.ansi)
+            terminal.installColors(lightTheme)
         }
+    }
+    
+    // 安全应用主题的方法
+    private func safeApplyTheme(theme: ThemeColor) {
+        // 打印主题信息
+        print("===== 主题信息 =====")
+        print("背景色: R:\(theme.background.red), G:\(theme.background.green), B:\(theme.background.blue)")
+        print("前景色: R:\(theme.foreground.red), G:\(theme.foreground.green), B:\(theme.foreground.blue)")
+        print("光标色: R:\(theme.cursor.red), G:\(theme.cursor.green), B:\(theme.cursor.blue)")
+        print("ANSI颜色集: \(theme.ansi.count)个颜色")
+        print("===================")
+        
+        print("开始应用主题...")
+        
+        // 正确转换背景色
+        let bgColor = theme.background
+        print("原始背景色值: R:\(bgColor.red/256), G:\(bgColor.green/256), B:\(bgColor.blue/256)")
+
+        // 确保值在0-1范围内
+        // SwiftTerm.Color值范围是0-65535，需要除以65535转换为0-1范围
+        let nsBackgroundColor: NSColor
+        // 简化条件判断
+        let isWhiteBg = theme.background.red > 60000 && theme.background.green > 60000 && theme.background.blue > 60000
+        let isBlackBg = theme.background.red < 5000 && theme.background.green < 5000 && theme.background.blue < 5000
+
+        print("isWhiteBg: \(isWhiteBg), isBlackBg: \(isBlackBg), 背景色R: \(theme.background.red), G: \(theme.background.green), B: \(theme.background.blue)")
+
+        // 对亮色主题进行特殊处理
+        if theme.isLight {
+            // 强制使用白色背景
+            nsBackgroundColor = NSColor(calibratedRed: 1.0, green: 1.0, blue: 1.0, alpha: 1.0)
+            print("强制使用白色背景")
+        } else {
+            // 强制使用黑色背景
+            nsBackgroundColor = NSColor(calibratedRed: 0.0, green: 0.0, blue: 0.0, alpha: 1.0)
+            print("强制使用黑色背景")
+        }
+
+        // 同样处理前景色
+        // 获取前景色
+        let nsForegroundColor: NSColor
+        // 简化条件判断
+        let isBlackFg = theme.foreground.red < 5000 && theme.foreground.green < 5000 && theme.foreground.blue < 5000
+        let isWhiteFg = theme.foreground.red > 60000 && theme.foreground.green > 60000 && theme.foreground.blue > 60000
+
+        print("isWhiteFg: \(isWhiteFg), isBlackFg: \(isBlackFg), 前景色R: \(theme.foreground.red), G: \(theme.foreground.green), B: \(theme.foreground.blue)")
+
+        // 对亮色主题进行特殊处理
+        if theme.isLight {
+            // 强制使用黑色前景
+            nsForegroundColor = NSColor(calibratedRed: 0.0, green: 0.0, blue: 0.0, alpha: 1.0)
+            print("强制使用黑色前景")
+        } else {
+            // 强制使用白色前景
+            nsForegroundColor = NSColor(calibratedRed: 1.0, green: 1.0, blue: 1.0, alpha: 1.0)
+            print("强制使用白色前景")
+        }
+
+        print("使用背景色: \(nsBackgroundColor)")
+        print("使用前景色: \(nsForegroundColor)")
+
+        // 应用顺序调整:
+        // 1. 先设置ANSI颜色集
+        print("设置ANSI颜色集...")
+        terminal.installColors(theme.ansi)
+
+        // 2. 设置终端内部颜色
+        let terminalController = terminal.getTerminal()
+        print("设置终端内部颜色...")
+        terminalController.backgroundColor = theme.background
+        terminalController.foregroundColor = theme.foreground
+
+        // 3. 最后设置原生颜色
+        print("设置原生背景色和前景色...")
+        terminal.nativeBackgroundColor = nsBackgroundColor
+        terminal.nativeForegroundColor = nsForegroundColor
+
+        // 设置光标颜色
+        let cursorRed = CGFloat(theme.cursor.red) / 65535.0
+        let cursorGreen = CGFloat(theme.cursor.green) / 65535.0
+        let cursorBlue = CGFloat(theme.cursor.blue) / 65535.0
+        let cursorColor = NSColor(
+            calibratedRed: cursorRed,
+            green: cursorGreen,
+            blue: cursorBlue,
+            alpha: 1.0
+        )
+        terminal.caretColor = cursorColor
+
+        // 强制重绘
+        print("强制重绘视图...")
+        terminal.setNeedsDisplay(terminal.bounds)
+
+        // 打印最终应用的颜色
+        print("---- 应用后的颜色状态 ----")
+        // 转换为sRGB颜色空间再获取组件
+        let finalBg = terminal.nativeBackgroundColor.usingColorSpace(NSColorSpace.sRGB) ?? terminal.nativeBackgroundColor
+        let finalFg = terminal.nativeForegroundColor.usingColorSpace(NSColorSpace.sRGB) ?? terminal.nativeForegroundColor
+
+        // 简化打印
+        print("背景色信息: \(finalBg.description)")
+        print("前景色信息: \(finalFg.description)")
+        print("--------------------------")
+
+        print("主题已应用完成")
     }
 }
 
