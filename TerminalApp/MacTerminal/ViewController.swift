@@ -16,6 +16,9 @@ import Combine
 class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUserInterfaceValidations, ObservableObject {
     @IBOutlet var loggingMenuItem: NSMenuItem?
 
+    // 追踪菜单是否已被设置
+    static var menuInitialized = false
+
     var changingSize = false
     var logging: Bool = false
     var zoomGesture: NSMagnificationGestureRecognizer?
@@ -522,6 +525,21 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
     
     // 设置主题菜单
     func setupThemeMenu() {
+        // 检查菜单是否已经设置，如果已设置则不重复添加
+        if ViewController.menuInitialized {
+            return
+        }
+        
+        // 检查主菜单中是否已经存在主题菜单
+        if let mainMenu = NSApplication.shared.mainMenu {
+            for item in mainMenu.items {
+                if item.title == "主题" {
+                    // 主题菜单已存在，直接返回
+                    return
+                }
+            }
+        }
+        
         let themeMenu = NSMenu(title: "主题")
         
         // 添加主题选项
@@ -553,10 +571,28 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
         
         // 添加设置菜单
         setupSettingsMenu()
+        
+        // 标记菜单已被初始化
+        ViewController.menuInitialized = true
     }
     
     // 设置字体大小菜单
     func setupFontSizeMenu() {
+        // 如果菜单已初始化，则不需要再次设置
+        if ViewController.menuInitialized {
+            return
+        }
+        
+        // 检查主菜单中是否已经存在字体大小菜单
+        if let mainMenu = NSApplication.shared.mainMenu {
+            for item in mainMenu.items {
+                if item.title == "字体大小" {
+                    // 字体大小菜单已存在，直接返回
+                    return
+                }
+            }
+        }
+        
         let fontSizeMenu = NSMenu(title: "字体大小")
         
         // 增大字体选项
@@ -597,7 +633,21 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
     
     // 添加设置菜单
     func setupSettingsMenu() {
+        // 如果菜单已初始化，则不需要再次设置
+        if ViewController.menuInitialized {
+            return
+        }
+        
         if let mainMenu = NSApplication.shared.mainMenu {
+            // 检查主菜单中是否已经存在设置菜单
+            for item in mainMenu.items {
+                if item.title == "设置" {
+                    // 设置菜单已存在，直接返回
+                    ViewController.menuInitialized = true
+                    return
+                }
+            }
+            
             // 创建设置菜单
             let settingsMenu = NSMenu(title: "设置")
             
@@ -614,6 +664,9 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSUser
             
             // 在主题菜单之后插入设置菜单
             mainMenu.insertItem(settingsMainMenuItem, at: 2)
+            
+            // 标记菜单已被初始化
+            ViewController.menuInitialized = true
         }
     }
     
