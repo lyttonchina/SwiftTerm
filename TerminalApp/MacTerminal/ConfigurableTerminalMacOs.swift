@@ -37,12 +37,25 @@ struct RunningTerminalConfig: View {
     var body: some View {
         VStack {
             Form {
-                ScrollView(.horizontal) {
-                    ThemeSelector(themeName: $style, showDefault: true) { t in
-                        style = t
+                Group {
+                    Text("主题选择")
+                        .font(.headline)
+                        .padding(.bottom, 4)
+                        
+                    // 确保ThemeSelector能显示所有主题
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        ThemeSelector(themeName: $style, showDefault: false) { t in
+                            style = t
+                            // 实时预览主题（可选）
+                            if let viewController = NSApplication.shared.mainWindow?.contentViewController as? ViewController {
+                                viewController.applyTheme(themeName: t)
+                            }
+                        }
                     }
-                    .frame(maxWidth: .infinity)
+                    .frame(height: 90) // 设置足够高度显示主题预览
                 }
+                .padding(.bottom, 10)
+                
                 BackgroundSelector(backgroundStyle: $background, showDefault: true)
                 FontSelector(fontName: $fontName)
                 FontSizeSelector(fontName: fontName, fontSize: $fontSize)
@@ -68,6 +81,9 @@ struct RunningTerminalConfig: View {
             background = settings.backgroundStyle
             fontSize = settings.fontSize
             fontName = settings.fontName
+            
+            // 确保能够看到所有主题选项
+            print("可用主题: \(themes.map { $0.name }.joined(separator: ", "))")
         }
     }
 }

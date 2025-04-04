@@ -894,39 +894,11 @@ struct TerminalSettingsView: View {
                     Text("主题选择")
                         .font(.headline)
                     
-                    HStack {
-                        Button(action: {
-                            style = "Dark"
-                        }) {
-                            VStack {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.black)
-                                    .frame(width: 100, height: 60)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(style == "Dark" ? Color.blue : Color.clear, lineWidth: 3)
-                                    )
-                                Text("暗色主题")
-                            }
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        Button(action: {
-                            style = "Light"
-                        }) {
-                            VStack {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.white)
-                                    .frame(width: 100, height: 60)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(style == "Light" ? Color.blue : Color.gray, lineWidth: 3)
-                                    )
-                                Text("亮色主题")
-                            }
-                        }
-                        .buttonStyle(PlainButtonStyle())
+                    // 替换固定的两个按钮为ThemeSelector
+                    ThemeSelector(themeName: $style) { themeName in
+                        style = themeName
                     }
+                    .frame(height: 90) // 设置适当的高度以显示主题预览
                 }
                 
                 // 背景样式
@@ -987,7 +959,7 @@ struct TerminalSettingsView: View {
         .frame(width: 500, height: 400)
         .onAppear() {
             // 初始化当前值
-            style = terminal.nativeBackgroundColor.brightnessComponent < 0.5 ? "Dark" : "Light"
+            style = settings.themeName // 使用当前主题名称
             fontSize = terminal.font.pointSize
         }
     }
