@@ -418,6 +418,16 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         
         print("字体大小更改完成：\(size)pt")
     }
+    
+    // 平滑更改字体
+    func changeFontSmoothly(_ fontName: String, size: CGFloat = 0) {
+        print("开始更改字体到: \(fontName), 大小: \(size)pt")
+        
+        // 使用SwiftTerm提供的方法
+        terminal.changeFontSmoothly(fontName: fontName, size: size)
+        
+        print("字体更改完成：\(fontName), \(size)pt")
+    }
 
     // 应用自定义主题
     func applyTheme(themeName: String) {

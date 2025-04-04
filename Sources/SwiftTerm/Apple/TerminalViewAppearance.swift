@@ -126,6 +126,58 @@ extension TerminalView {
         }
     }
     
+    /// 平滑更改字体而不调整窗口尺寸
+    /// - Parameter fontName: 字体名称
+    /// - Parameter size: 字体大小，如果为0则使用系统默认大小
+    public func changeFontSmoothly(fontName: String, size: CGFloat = 0) {
+        // 设置字体大小更改标志
+        setFontSizeChanging(true)
+        
+        let actualSize = size == 0 ? NSFont.systemFontSize : size
+        
+        #if os(macOS)
+        // 尝试创建指定字体，如果失败则使用系统等宽字体
+        let newFont: NSFont
+        if let customFont = NSFont(name: fontName, size: actualSize) {
+            newFont = customFont
+        } else {
+            newFont = NSFont.monospacedSystemFont(ofSize: actualSize, weight: .regular)
+        }
+        
+        // 停用动画以减少闪烁
+        NSAnimationContext.beginGrouping()
+        NSAnimationContext.current.duration = 0
+        
+        // 更新字体而不清屏
+        setFont(newFont, clearScreen: false)
+        
+        // 强制重绘
+        self.needsDisplay = true
+        
+        // 结束动画组
+        NSAnimationContext.endGrouping()
+        #elseif os(iOS) || os(visionOS)
+        // 尝试创建指定字体，如果失败则使用系统等宽字体
+        let newFont: UIFont
+        if let customFont = UIFont(name: fontName, size: actualSize) {
+            newFont = customFont
+        } else {
+            newFont = UIFont.monospacedSystemFont(ofSize: actualSize, weight: .regular)
+        }
+        
+        // 更新字体而不清屏
+        setFont(newFont, clearScreen: false)
+        
+        // 强制重绘
+        self.setNeedsDisplay(self.bounds)
+        #endif
+        
+        // 延迟重置标志，确保所有大小变更处理已完成
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.setFontSizeChanging(false)
+        }
+    }
+    
     // 将 SwiftTerm.Color 转换为平台颜色
     #if os(macOS)
     private func term2nscolor(_ color: Color) -> NSColor {

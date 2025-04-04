@@ -29,8 +29,8 @@ struct RunningTerminalConfig: View {
             // 应用主题
             viewController.applyTheme(themeName: style)
             
-            // 更新字体大小
-            viewController.changeFontSizeSmoothly(fontSize)
+            // 更新字体和字体大小（即使它们可能已经在预览中更新）
+            viewController.changeFontSmoothly(fontName, size: fontSize)
         }
     }
 
@@ -82,6 +82,10 @@ struct RunningTerminalConfig: View {
                 
                 // 字体
                 FontSelector(fontName: $fontName)
+                    .onChange(of: fontName) { newFont in
+                        // 实时预览字体变化
+                        terminal.changeFontSmoothly(fontName: newFont, size: fontSize)
+                    }
                 
                 // 字体大小
                 FontSizeSelector(fontName: fontName, fontSize: $fontSize)
