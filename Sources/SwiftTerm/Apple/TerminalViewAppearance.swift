@@ -17,6 +17,8 @@ import AppKit
 
 // 全局存储，用于跟踪哪些视图正在保留缓冲区
 private var bufferPreservationState = NSMapTable<AnyObject, NSNumber>.weakToStrongObjects()
+// 全局存储，用于跟踪哪些视图正在更改字体大小
+private var fontSizeChangingState = NSMapTable<AnyObject, NSNumber>.weakToStrongObjects()
 
 extension TerminalView {
     
@@ -85,6 +87,45 @@ extension TerminalView {
         }
     }
     
+    /// 平滑更改字体大小而不调整窗口尺寸
+    /// - Parameter size: 新的字体大小
+    public func changeFontSizeSmoothly(_ size: CGFloat) {
+        // 设置字体大小更改标志
+        setFontSizeChanging(true)
+        
+        #if os(macOS)
+        // 创建新字体
+        let newFont = NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
+        
+        // 停用动画以减少闪烁
+        NSAnimationContext.beginGrouping()
+        NSAnimationContext.current.duration = 0
+        
+        // 更新字体而不清屏
+        setFont(newFont, clearScreen: false)
+        
+        // 强制重绘
+        self.needsDisplay = true
+        
+        // 结束动画组
+        NSAnimationContext.endGrouping()
+        #elseif os(iOS) || os(visionOS)
+        // 创建新字体
+        let newFont = UIFont.monospacedSystemFont(ofSize: size, weight: .regular)
+        
+        // 更新字体而不清屏
+        setFont(newFont, clearScreen: false)
+        
+        // 强制重绘
+        self.setNeedsDisplay(self.bounds)
+        #endif
+        
+        // 延迟重置标志，确保所有大小变更处理已完成
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.setFontSizeChanging(false)
+        }
+    }
+    
     // 将 SwiftTerm.Color 转换为平台颜色
     #if os(macOS)
     private func term2nscolor(_ color: Color) -> NSColor {
@@ -114,6 +155,18 @@ extension TerminalView {
     
     fileprivate func isBufferBeingPreserved() -> Bool {
         guard let number = bufferPreservationState.object(forKey: self) else {
+            return false
+        }
+        return number.boolValue
+    }
+    
+    fileprivate func setFontSizeChanging(_ changing: Bool) {
+        fontSizeChangingState.setObject(NSNumber(value: changing), forKey: self)
+    }
+    
+    /// 检查终端视图是否正在更改字体大小
+    public func isFontSizeChanging() -> Bool {
+        guard let number = fontSizeChangingState.object(forKey: self) else {
             return false
         }
         return number.boolValue

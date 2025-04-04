@@ -413,31 +413,8 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
     func changeFontSizeSmoothly(_ size: CGFloat) {
         print("开始更改字体大小到: \(size)pt")
         
-        // 创建新字体
-        let newFont = NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
-        
-        // 停用动画以减少闪烁
-        NSAnimationContext.beginGrouping()
-        NSAnimationContext.current.duration = 0
-        
-        // 关键：设置changingSize标志为true，阻止sizeChanged方法调整窗口大小
-        changingSize = true
-        
-        // 更新字体而不清屏
-        terminal.setFont(newFont, clearScreen: false)
-        
-        // 调整terminal frame以确保正确的行列计算
-        // 这会触发processSizeChange方法，但因为changingSize=true，sizeChanged不会调整窗口
-        terminal.frame = view.frame
-        
-        // 强制重绘
-        terminal.needsDisplay = true
-        
-        // 重置标志
-        changingSize = false
-        
-        // 结束动画组
-        NSAnimationContext.endGrouping()
+        // 使用SwiftTerm提供的方法
+        terminal.changeFontSizeSmoothly(size)
         
         print("字体大小更改完成：\(size)pt")
     }
@@ -478,11 +455,12 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
     // 处理终端大小变化
     func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {
         print("sizeChanged: \(newCols) \(newRows)")
-        print("changingSize: \(changingSize)")
-
-        if changingSize {
+        
+        // 如果终端正在更改字体大小，不调整窗口大小
+        if terminal.isFontSizeChanging() {
             return
         }
+        
         changingSize = true
         var newFrame = terminal.getOptimalFrameSize()
         let windowFrame = view.window!.frame

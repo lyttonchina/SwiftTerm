@@ -227,16 +227,20 @@ struct FontSize: View {
     var fontName: String
     var size: CGFloat
     @Binding var currentSize: CGFloat
-    @State var caption = "Aa"
+    var caption: String?
     var body: some View {
-        Text(caption)
-            .background(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .stroke(self.currentSize == size ? Color.accentColor : Color.secondary, lineWidth: 2)
-                    .frame(width: caption == "Aa" ? 40 : nil, height: 40)
-            )
-            .font(size == 0 ? .custom(fontName, size: settings.resolveFontSize(0)) : .custom(fontName, size: size))
-            .padding()
+        Text(self.caption ?? "\(Int(self.size))")
+            .padding(5)
+            .background(size == currentSize ? Color.blue : Color.gray)
+            .foregroundColor(Color.white)
+            .cornerRadius(5)
+            .onTapGesture {
+                self.currentSize = self.size
+                // 实时预览字体大小
+                if let viewController = NSApplication.shared.mainWindow?.contentViewController as? ViewController {
+                    viewController.changeFontSizeSmoothly(self.size == 0 ? NSFont.systemFontSize : self.size)
+                }
+            }
     }
 }
 
@@ -307,7 +311,7 @@ struct FontSizeSelector: View {
                             self.fontSize = 0
                         }
                     ForEach(fontSizes, id: \.self) { size in
-                        FontSize(fontName: self.fontName, size: size, currentSize: self.$fontSize)
+                        FontSize(fontName: self.fontName, size: size, currentSize: self.$fontSize, caption: "\(Int(size))")
                             .onTapGesture {
                                 self.fontSize = size
                             }

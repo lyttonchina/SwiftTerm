@@ -85,6 +85,10 @@ struct RunningTerminalConfig: View {
                 
                 // 字体大小
                 FontSizeSelector(fontName: fontName, fontSize: $fontSize)
+                    .onChange(of: fontSize) { newSize in
+                        // 实时预览字体大小变化
+                        terminal.changeFontSizeSmoothly(newSize)
+                    }
             }
             .padding(20)
 
