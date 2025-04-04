@@ -37,27 +37,53 @@ struct RunningTerminalConfig: View {
     var body: some View {
         VStack {
             Form {
-                Group {
+                // 主题选择
+                VStack(alignment: .leading) {
                     Text("主题选择")
                         .font(.headline)
-                        .padding(.bottom, 4)
-                        
-                    // 确保ThemeSelector能显示所有主题
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        ThemeSelector(themeName: $style, showDefault: false) { t in
-                            style = t
-                            // 实时预览主题（可选）
-                            if let viewController = NSApplication.shared.mainWindow?.contentViewController as? ViewController {
-                                viewController.applyTheme(themeName: t)
+                    
+                    Text("在下方区域滑动或使用滚动条查看更多主题")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    ScrollView(.horizontal, showsIndicators: true) {
+                        LazyHStack(spacing: 10) {
+                            // 使用ForEach直接迭代所有主题
+                            ForEach(themes, id: \.self) { theme in
+                                VStack {
+                                    ThemePreview(themeColor: theme, selected: style == theme.name)
+                                        .frame(width: 150, height: 80)
+                                        .border(style == theme.name ? Color.blue : Color.clear, width: 2)
+                                        .onTapGesture {
+                                            style = theme.name
+                                            // 实时预览
+                                            if let viewController = NSApplication.shared.mainWindow?.contentViewController as? ViewController {
+                                                viewController.applyTheme(themeName: theme.name)
+                                            }
+                                        }
+                                    
+                                    Text(theme.name)
+                                        .font(.caption)
+                                        .lineLimit(1)
+                                }
+                                .padding(5)
                             }
                         }
+                        .padding(.vertical, 5)
                     }
-                    .frame(height: 90) // 设置足够高度显示主题预览
+                    .frame(height: 120)
+                    .border(Color.gray.opacity(0.5))
                 }
-                .padding(.bottom, 10)
                 
+                Divider()
+                
+                // 背景样式
                 BackgroundSelector(backgroundStyle: $background, showDefault: true)
+                
+                // 字体
                 FontSelector(fontName: $fontName)
+                
+                // 字体大小
                 FontSizeSelector(fontName: fontName, fontSize: $fontSize)
             }
             .padding(20)
@@ -75,15 +101,15 @@ struct RunningTerminalConfig: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
         }
-        .frame(width: 800, height: 400)
+        .frame(width: 800, height: 450)
         .onAppear() {
             style = settings.themeName
             background = settings.backgroundStyle
             fontSize = settings.fontSize
             fontName = settings.fontName
             
-            // 确保能够看到所有主题选项
-            print("可用主题: \(themes.map { $0.name }.joined(separator: ", "))")
+            // 打印主题列表用于调试
+            print("Available themes: \(themes.map { $0.name }.joined(separator: ", "))")
         }
     }
 }

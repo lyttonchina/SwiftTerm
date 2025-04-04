@@ -228,7 +228,7 @@ struct ThemeSelector: View {
     @State var showDefault = false
     var callback: (_ themeName: String) -> ()
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal, showsIndicators: true) {
             HStack {
                 if showDefault {
                     ThemePreview(themeColor: settings.getTheme(), title: "Default")

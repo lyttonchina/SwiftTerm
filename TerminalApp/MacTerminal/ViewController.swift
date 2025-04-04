@@ -851,116 +851,14 @@ struct SettingsWrapperView: View {
                 get: { self.showingSettings.showingSettings },
                 set: { self.showingSettings.showingSettings = $0 }
             )) {
-                // 使用内部定义的 RunningTerminalConfig
-                TerminalSettingsView(
+                // 使用ConfigurableTerminalMacOs.swift中的RunningTerminalConfig
+                RunningTerminalConfig(
+                    showingModal: Binding<Bool>(
+                        get: { self.showingSettings.showingSettings },
+                        set: { self.showingSettings.showingSettings = $0 }
+                    ),
                     terminal: self.terminal
                 )
             }
-    }
-}
-
-// 在 ViewController.swift 中定义设置视图
-struct TerminalSettingsView: View {
-    var terminal: LocalProcessTerminalView
-    @Environment(\.presentationMode) var presentationMode
-    
-    @State var style: String = "Dark"
-    @State var background: String = "Solid"
-    @State var fontName: String = "Menlo"
-    @State var fontSize: CGFloat = 13.0
-    
-    func save() {
-        // 根据主题切换颜色
-        if let viewController = NSApplication.shared.mainWindow?.contentViewController as? ViewController {
-            // 更新全局设置
-            settings.themeName = style
-            
-            // 应用主题
-            viewController.applyTheme(themeName: style)
-            
-            // 更新字体
-            viewController.changeFontSizeSmoothly(fontSize)
-        }
-        
-        // 关闭设置窗口
-        self.presentationMode.wrappedValue.dismiss()
-    }
-    
-    var body: some View {
-        VStack {
-            Form {
-                // 主题选择
-                Group {
-                    Text("主题选择")
-                        .font(.headline)
-                    
-                    // 替换固定的两个按钮为ThemeSelector
-                    ThemeSelector(themeName: $style) { themeName in
-                        style = themeName
-                    }
-                    .frame(height: 90) // 设置适当的高度以显示主题预览
-                }
-                
-                // 背景样式
-                Group {
-                    Text("背景样式")
-                        .font(.headline)
-                        .padding(.top, 8)
-                    
-                    Picker("背景样式", selection: $background) {
-                        Text("纯色").tag("Solid")
-                        Text("渐变").tag("Gradient")
-                    }
-                    .pickerStyle(SegmentedPickerStyle())
-                }
-                
-                // 字体选择
-                Group {
-                    Text("字体选择")
-                        .font(.headline)
-                        .padding(.top, 8)
-                    
-                    Picker("字体", selection: $fontName) {
-                        Text("Menlo").tag("Menlo")
-                        Text("Monaco").tag("Monaco")
-                        Text("Courier").tag("Courier")
-                        Text("SF Mono").tag("SF Mono")
-                    }
-                    .pickerStyle(PopUpButtonPickerStyle())
-                }
-                
-                // 字体大小
-                Group {
-                    Text("字体大小: \(Int(fontSize))")
-                        .font(.headline)
-                        .padding(.top, 8)
-                    
-                    HStack {
-                        Text("10")
-                        Slider(value: $fontSize, in: 10...24, step: 1)
-                        Text("24")
-                    }
-                }
-            }
-            .padding(20)
-
-            HStack {
-                Button("取消") {
-                    self.presentationMode.wrappedValue.dismiss()
-                }
-                Spacer()
-                Button("保存") {
-                    save()
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
-        }
-        .frame(width: 500, height: 400)
-        .onAppear() {
-            // 初始化当前值
-            style = settings.themeName // 使用当前主题名称
-            fontSize = terminal.font.pointSize
-        }
     }
 }
