@@ -25,7 +25,6 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
 
     var changingSize = false
     var logging: Bool = false
-    var zoomGesture: NSMagnificationGestureRecognizer?
     var postedTitle: String = ""
     var postedDirectory: String? = nil
     
@@ -82,8 +81,6 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         super.viewDidLoad()
         test ()
         terminal = LocalProcessTerminalView(frame: view.frame)
-        zoomGesture = NSMagnificationGestureRecognizer(target: self, action: #selector(zoomGestureHandler))
-        terminal.addGestureRecognizer(zoomGesture!)
         ViewController.lastTerminal = terminal
         terminal.processDelegate = self
         terminal.feed(text: "Welcome to SwiftTerm")
@@ -91,7 +88,7 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         // 启用主题切换优化
         TerminalView.enableThemeSwitchImprovement()
         
-        // 设置菜单
+        // 设置设置菜单
         setupSettingsMenu()
 
         let shell = getShell()
@@ -148,15 +145,6 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         //terminal = nil
     }
     
-    @objc
-    func zoomGestureHandler (_ sender: NSMagnificationGestureRecognizer) {
-        if sender.magnification > 0 {
-            biggerFont (sender)
-        } else {
-            smallerFont(sender)
-        }
-    }
-
     override func viewDidLayout() {
         super.viewDidLayout()
         changingSize = true
@@ -304,35 +292,6 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         terminal.optionAsMetaKey.toggle ()
     }
     
-    @objc @IBAction
-    func biggerFont (_ source: AnyObject)
-    {
-        let size = terminal.font.pointSize
-        guard size < 72 else {
-            return
-        }
-        
-        changeFontSizeSmoothly(size + 1)
-    }
-
-    @objc @IBAction
-    func smallerFont (_ source: AnyObject)
-    {
-        let size = terminal.font.pointSize
-        guard size > 5 else {
-            return
-        }
-        
-        changeFontSizeSmoothly(size - 1)
-    }
-
-    @objc @IBAction
-    func defaultFontSize  (_ source: AnyObject)
-    {
-        changeFontSizeSmoothly(NSFont.systemFontSize)
-    }
-    
-
     @objc @IBAction
     func addTab (_ source: AnyObject)
     {
