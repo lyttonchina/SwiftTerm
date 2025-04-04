@@ -29,81 +29,7 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
     var postedTitle: String = ""
     var postedDirectory: String? = nil
     
-    // 定义主题
-    lazy var darkTheme: [SwiftTerm.Color] = [
-        // 黑色 (背景)
-        SwiftTerm.Color(red: 0, green: 0, blue: 0),
-        // 红色
-        SwiftTerm.Color(red: 170, green: 0, blue: 0),
-        // 绿色
-        SwiftTerm.Color(red: 0, green: 170, blue: 0),
-        // 黄色
-        SwiftTerm.Color(red: 170, green: 85, blue: 0),
-        // 蓝色
-        SwiftTerm.Color(red: 0, green: 0, blue: 170),
-        // 洋红
-        SwiftTerm.Color(red: 170, green: 0, blue: 170),
-        // 青色
-        SwiftTerm.Color(red: 0, green: 170, blue: 170),
-        // 白色 (前景)
-        SwiftTerm.Color(red: 170, green: 170, blue: 170),
-        // 亮黑
-        SwiftTerm.Color(red: 85, green: 85, blue: 85),
-        // 亮红
-        SwiftTerm.Color(red: 255, green: 85, blue: 85),
-        // 亮绿
-        SwiftTerm.Color(red: 85, green: 255, blue: 85),
-        // 亮黄
-        SwiftTerm.Color(red: 255, green: 255, blue: 85),
-        // 亮蓝
-        SwiftTerm.Color(red: 85, green: 85, blue: 255),
-        // 亮洋红
-        SwiftTerm.Color(red: 255, green: 85, blue: 255),
-        // 亮青
-        SwiftTerm.Color(red: 85, green: 255, blue: 255),
-        // 亮白
-        SwiftTerm.Color(red: 255, green: 255, blue: 255)
-    ]
-    
-    lazy var lightTheme: [SwiftTerm.Color] = [
-        // 白色 (背景) - 确保值为有效的白色
-        SwiftTerm.Color(red: 65535, green: 65535, blue: 65535),
-        // 红色
-        SwiftTerm.Color(red: 170, green: 0, blue: 0),
-        // 绿色
-        SwiftTerm.Color(red: 0, green: 170, blue: 0),
-        // 黄色
-        SwiftTerm.Color(red: 170, green: 85, blue: 0),
-        // 蓝色
-        SwiftTerm.Color(red: 0, green: 0, blue: 170),
-        // 洋红
-        SwiftTerm.Color(red: 170, green: 0, blue: 170),
-        // 青色
-        SwiftTerm.Color(red: 0, green: 170, blue: 170),
-        // 黑色 (前景) - 确保值为有效的黑色
-        SwiftTerm.Color(red: 0, green: 0, blue: 0),
-        // 亮黑
-        SwiftTerm.Color(red: 85, green: 85, blue: 85),
-        // 亮红
-        SwiftTerm.Color(red: 255, green: 85, blue: 85),
-        // 亮绿
-        SwiftTerm.Color(red: 85, green: 255, blue: 85),
-        // 亮黄
-        SwiftTerm.Color(red: 255, green: 255, blue: 85),
-        // 亮蓝
-        SwiftTerm.Color(red: 85, green: 85, blue: 255),
-        // 亮洋红
-        SwiftTerm.Color(red: 255, green: 85, blue: 255),
-        // 亮青
-        SwiftTerm.Color(red: 85, green: 255, blue: 255),
-        // 亮白
-        SwiftTerm.Color(red: 255, green: 255, blue: 255)
-    ]
-
     // 终端进程
-    let darkGreen = Color (red: 0, green: 32768, blue: 0)
-    let paleYellow = Color (red: 65535, green: 65535, blue: 45000)
-
     var terminal: LocalProcessTerminalView!
 
     static weak var lastTerminal: LocalProcessTerminalView!
@@ -165,8 +91,8 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         // 启用主题切换优化
         TerminalView.enableThemeSwitchImprovement()
         
-        // 设置主题菜单
-        setupThemeMenu()
+        // 设置菜单
+        setupSettingsMenu()
 
         let shell = getShell()
         let shellIdiom = "-" + NSString(string: shell).lastPathComponent
@@ -477,115 +403,7 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         updateLogging()
     }
     
-    // 设置主题菜单
-    func setupThemeMenu() {
-        // 检查菜单是否已经设置，如果已设置则不重复添加
-        if ViewController.menuInitialized {
-            return
-        }
-        
-        // 检查主菜单中是否已经存在主题菜单
-        if let mainMenu = NSApplication.shared.mainMenu {
-            for item in mainMenu.items {
-                if item.title == "主题" {
-                    // 主题菜单已存在，直接返回
-                    return
-                }
-            }
-        }
-        
-        let themeMenu = NSMenu(title: "主题")
-        
-        // 添加主题选项
-        let darkThemeItem = NSMenuItem(title: "暗色主题", action: #selector(applyDarkTheme), keyEquivalent: "d")
-        darkThemeItem.target = self
-        themeMenu.addItem(darkThemeItem)
-        
-        let lightThemeItem = NSMenuItem(title: "亮色主题", action: #selector(applyLightTheme), keyEquivalent: "l")
-        lightThemeItem.target = self
-        themeMenu.addItem(lightThemeItem)
-        
-        // 添加传统方式主题切换选项
-        themeMenu.addItem(NSMenuItem.separator())
-        let traditionalItem = NSMenuItem(title: "传统方式切换(会闪烁)", action: #selector(switchThemeTraditional), keyEquivalent: "t")
-        traditionalItem.target = self
-        themeMenu.addItem(traditionalItem)
-        
-        // 添加到主菜单
-        let themeMenuItem = NSMenuItem(title: "主题", action: nil, keyEquivalent: "")
-        themeMenuItem.submenu = themeMenu
-        
-        if let mainMenu = NSApplication.shared.mainMenu {
-            // 在文件菜单之后插入主题菜单
-            mainMenu.insertItem(themeMenuItem, at: 1)
-        }
-        
-        // 添加字体大小菜单
-        setupFontSizeMenu()
-        
-        // 添加设置菜单
-        setupSettingsMenu()
-        
-        // 标记菜单已被初始化
-        ViewController.menuInitialized = true
-    }
-    
-    // 设置字体大小菜单
-    func setupFontSizeMenu() {
-        // 如果菜单已初始化，则不需要再次设置
-        if ViewController.menuInitialized {
-            return
-        }
-        
-        // 检查主菜单中是否已经存在字体大小菜单
-        if let mainMenu = NSApplication.shared.mainMenu {
-            for item in mainMenu.items {
-                if item.title == "字体大小" {
-                    // 字体大小菜单已存在，直接返回
-                    return
-                }
-            }
-        }
-        
-        let fontSizeMenu = NSMenu(title: "字体大小")
-        
-        // 增大字体选项
-        let increaseFontItem = NSMenuItem(title: "增大字体", action: #selector(biggerFont(_:)), keyEquivalent: "+")
-        increaseFontItem.keyEquivalentModifierMask = .command
-        fontSizeMenu.addItem(increaseFontItem)
-        
-        // 减小字体选项
-        let decreaseFontItem = NSMenuItem(title: "减小字体", action: #selector(smallerFont(_:)), keyEquivalent: "-")
-        decreaseFontItem.keyEquivalentModifierMask = .command
-        fontSizeMenu.addItem(decreaseFontItem)
-        
-        // 恢复默认字体大小
-        let defaultFontItem = NSMenuItem(title: "默认字体大小", action: #selector(defaultFontSize(_:)), keyEquivalent: "0")
-        defaultFontItem.keyEquivalentModifierMask = .command
-        fontSizeMenu.addItem(defaultFontItem)
-        
-        // 分隔线
-        fontSizeMenu.addItem(NSMenuItem.separator())
-        
-        // 预设字体大小选项
-        let fontSizes = [10, 12, 14, 16, 18, 20, 24, 28, 32]
-        for size in fontSizes {
-            let fontSizeItem = NSMenuItem(title: "\(size) 号字体", action: #selector(setCustomFontSize(_:)), keyEquivalent: "")
-            fontSizeItem.tag = size
-            fontSizeMenu.addItem(fontSizeItem)
-        }
-        
-        // 添加到主菜单
-        let fontSizeMenuItem = NSMenuItem(title: "字体大小", action: nil, keyEquivalent: "")
-        fontSizeMenuItem.submenu = fontSizeMenu
-        
-        if let mainMenu = NSApplication.shared.mainMenu {
-            // 在主题菜单之后插入字体大小菜单
-            mainMenu.insertItem(fontSizeMenuItem, at: 2)
-        }
-    }
-    
-    // 添加设置菜单
+    // 设置菜单
     func setupSettingsMenu() {
         // 如果菜单已初始化，则不需要再次设置
         if ViewController.menuInitialized {
@@ -616,8 +434,8 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
             let settingsMainMenuItem = NSMenuItem(title: "设置", action: nil, keyEquivalent: "")
             settingsMainMenuItem.submenu = settingsMenu
             
-            // 在主题菜单之后插入设置菜单
-            mainMenu.insertItem(settingsMainMenuItem, at: 2)
+            // 在文件菜单之后插入设置菜单
+            mainMenu.insertItem(settingsMainMenuItem, at: 1)
             
             // 标记菜单已被初始化
             ViewController.menuInitialized = true
@@ -665,22 +483,6 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         print("字体大小更改完成：\(size)pt")
     }
 
-    // 设置自定义字体大小
-    @objc func setCustomFontSize(_ sender: NSMenuItem) {
-        let fontSize = CGFloat(sender.tag)
-        changeFontSizeSmoothly(fontSize)
-    }
-    
-    // 传统方式切换主题（会有闪烁）
-    @objc func switchThemeTraditional() {
-        print("使用传统方式切换主题（会看到闪烁）")
-        if terminal.nativeBackgroundColor.brightnessComponent > 0.5 {
-            terminal.installColors(darkTheme)
-        } else {
-            terminal.installColors(lightTheme)
-        }
-    }
-    
     // 应用自定义主题
     func applyTheme(themeName: String) {
         if let theme = themes.first(where: { $0.name == themeName }) {
@@ -714,16 +516,6 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         return brightness > 0.5
     }
     
-    // 应用暗色主题的选择器方法
-    @objc func applyDarkTheme() {
-        applyTheme(themeName: "Dark")
-    }
-    
-    // 应用亮色主题的选择器方法
-    @objc func applyLightTheme() {
-        applyTheme(themeName: "Light")
-    }
-
     // 处理终端大小变化
     func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {
         print("sizeChanged: \(newCols) \(newRows)")
