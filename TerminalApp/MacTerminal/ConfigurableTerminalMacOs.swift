@@ -27,11 +27,7 @@ struct RunningTerminalConfig: View {
         // 获取当前的 ViewController 实例并应用设置
         if let viewController = NSApplication.shared.mainWindow?.contentViewController as? ViewController {
             // 应用主题
-            if style == "Dark" {
-                viewController.switchToDarkTheme()
-            } else {
-                viewController.switchToLightTheme()
-            }
+            viewController.applyTheme(themeName: style)
             
             // 更新字体大小
             viewController.changeFontSizeSmoothly(fontSize)

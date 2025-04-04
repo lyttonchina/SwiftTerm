@@ -8,6 +8,7 @@
 #if os(macOS) || os(iOS) || os(visionOS)
 import Foundation
 import CoreGraphics
+import SwiftUI
 #if os(iOS) || os(visionOS)
 import UIKit
 #elseif os(macOS)
@@ -18,17 +19,9 @@ import AppKit
 private var bufferPreservationState = NSMapTable<AnyObject, NSNumber>.weakToStrongObjects()
 
 extension TerminalView {
-    /// 更新颜色而不清空终端内容
-    public func updateColorsOnly(_ colors: [Color]) {
-        terminal.installPalette(colors: colors)
-        self.colors = Array(repeating: nil, count: 256)
-        urlAttributes = [:]
-        attributes = [:]
-        queuePendingDisplay()
-    }
     
     /// 主题颜色配置结构
-    public class ThemeColor {
+    public class TerminalThemeColor {
         public let ansi: [Color]
         public let foreground: Color
         public let background: Color
@@ -57,19 +50,32 @@ extension TerminalView {
     }
     
     /// 应用主题并平滑切换
-    public func applyTheme(theme: ThemeColor) {
+    public func applyTheme(theme: TerminalThemeColor) {
         setBufferPreservation(true)
-        updateColorsOnly(theme.ansi)
         
+        // 设置ANSI颜色数组
+        terminal.installPalette(colors: theme.ansi)
+        self.colors = Array(repeating: nil, count: 256)
+        urlAttributes = [:]
+        attributes = [:]
+        queuePendingDisplay()
+        
+        // 设置终端基本颜色
         terminal.backgroundColor = theme.background
         terminal.foregroundColor = theme.foreground
+        terminal.cursorColor = theme.cursor // 设置光标颜色
         
+        // 设置原生颜色
         #if os(macOS)
-        self.nativeBackgroundColor = theme.isLight ? NSColor.white : NSColor.black
-        self.nativeForegroundColor = theme.isLight ? NSColor.black : NSColor.white
+        self.nativeBackgroundColor = term2nscolor(theme.background)
+        self.nativeForegroundColor = term2nscolor(theme.foreground)
+        self.caretColor = term2nscolor(theme.cursor)
+        self.selectedTextBackgroundColor = term2nscolor(theme.selectionColor)
         #elseif os(iOS) || os(visionOS)
-        self.nativeBackgroundColor = theme.isLight ? UIColor.white : UIColor.black
-        self.nativeForegroundColor = theme.isLight ? UIColor.black : UIColor.white
+        self.nativeBackgroundColor = term2uicolor(theme.background)
+        self.nativeForegroundColor = term2uicolor(theme.foreground)
+        self.caretColor = term2uicolor(theme.cursor)
+        self.selectedTextBackgroundColor = term2uicolor(theme.selectionColor)
         #endif
         
         self.setNeedsDisplay(self.bounds)
@@ -79,50 +85,27 @@ extension TerminalView {
         }
     }
     
-    /// 创建标准暗色主题
-    public static func createDarkTheme() -> ThemeColor {
-        let darkTheme: [Color] = [
-            Color(red: 0, green: 0, blue: 0),
-            Color(red: 170, green: 0, blue: 0),
-            Color(red: 0, green: 170, blue: 0),
-            Color(red: 170, green: 85, blue: 0),
-            Color(red: 0, green: 0, blue: 170),
-            Color(red: 170, green: 0, blue: 170),
-            Color(red: 0, green: 170, blue: 170),
-            Color(red: 170, green: 170, blue: 170),
-            Color(red: 85, green: 85, blue: 85),
-            Color(red: 255, green: 85, blue: 85),
-            Color(red: 85, green: 255, blue: 85),
-            Color(red: 255, green: 255, blue: 85),
-            Color(red: 85, green: 85, blue: 255),
-            Color(red: 255, green: 85, blue: 255),
-            Color(red: 85, green: 255, blue: 255),
-            Color(red: 255, green: 255, blue: 255)
-        ]
-        return ThemeColor(ansiColors: darkTheme, isLight: false)
+    // 将 SwiftTerm.Color 转换为平台颜色
+    #if os(macOS)
+    private func term2nscolor(_ color: Color) -> NSColor {
+        return NSColor(red: CGFloat(color.red) / 65535.0,
+                      green: CGFloat(color.green) / 65535.0,
+                       blue: CGFloat(color.blue) / 65535.0,
+                      alpha: 1.0)
     }
+    #elseif os(iOS) || os(visionOS)
+    private func term2uicolor(_ color: Color) -> UIColor {
+        return UIColor(red: CGFloat(color.red) / 65535.0,
+                      green: CGFloat(color.green) / 65535.0,
+                       blue: CGFloat(color.blue) / 65535.0,
+                      alpha: 1.0)
+    }
+    #endif
     
-    /// 创建标准亮色主题
-    public static func createLightTheme() -> ThemeColor {
-        let lightTheme: [Color] = [
-            Color(red: 65535, green: 65535, blue: 65535),
-            Color(red: 170, green: 0, blue: 0),
-            Color(red: 0, green: 170, blue: 0),
-            Color(red: 170, green: 85, blue: 0),
-            Color(red: 0, green: 0, blue: 170),
-            Color(red: 170, green: 0, blue: 170),
-            Color(red: 0, green: 170, blue: 170),
-            Color(red: 0, green: 0, blue: 0),
-            Color(red: 85, green: 85, blue: 85),
-            Color(red: 255, green: 85, blue: 85),
-            Color(red: 85, green: 255, blue: 85),
-            Color(red: 255, green: 255, blue: 85),
-            Color(red: 85, green: 85, blue: 255),
-            Color(red: 255, green: 85, blue: 255),
-            Color(red: 85, green: 255, blue: 255),
-            Color(red: 255, green: 255, blue: 255)
-        ]
-        return ThemeColor(ansiColors: lightTheme, isLight: true)
+    private func term2color(_ color: Color) -> SwiftUI.Color {
+        return SwiftUI.Color(red: Double(color.red) / 65535.0,
+                           green: Double(color.green) / 65535.0,
+                            blue: Double(color.blue) / 65535.0)
     }
     
     fileprivate func setBufferPreservation(_ preserved: Bool) {

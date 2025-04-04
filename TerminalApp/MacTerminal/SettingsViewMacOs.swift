@@ -17,83 +17,69 @@ let fontSizeKey = "fontSize"
 // 用于存储用户默认设置的对象
 let defaults = UserDefaults.standard
 
-// 定义终端主题颜色
-struct ThemeColor: Hashable {
-    let name: String
-    let foreground: SwiftTerm.Color
-    let background: SwiftTerm.Color
-    let ansi: [SwiftTerm.Color]
-    let isLight: Bool
-    
-    init(name: String = "Custom", foreground: SwiftTerm.Color, background: SwiftTerm.Color, ansiColors: [SwiftTerm.Color], isLight: Bool) {
-        self.name = name
-        self.foreground = foreground
-        self.background = background
-        self.ansi = ansiColors
-        self.isLight = isLight
-    }
-    
-    // 用于 Hashable 协议
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(name)
-    }
-    
-    static func == (lhs: ThemeColor, rhs: ThemeColor) -> Bool {
-        return lhs.name == rhs.name
-    }
-}
-
 // 定义可用的主题列表
-let themes: [ThemeColor] = [
-    ThemeColor(
-        name: "Dark",
-        foreground: SwiftTerm.Color(red: 65535, green: 65535, blue: 65535),
-        background: SwiftTerm.Color(red: 0, green: 0, blue: 0),
-        ansiColors: [
-            SwiftTerm.Color(red: 0, green: 0, blue: 0),
-            SwiftTerm.Color(red: 65535, green: 0, blue: 0),
-            SwiftTerm.Color(red: 0, green: 65535, blue: 0),
-            SwiftTerm.Color(red: 65535, green: 65535, blue: 0),
-            SwiftTerm.Color(red: 0, green: 0, blue: 65535),
-            SwiftTerm.Color(red: 65535, green: 0, blue: 65535),
-            SwiftTerm.Color(red: 0, green: 65535, blue: 65535),
-            SwiftTerm.Color(red: 65535, green: 65535, blue: 65535),
-            SwiftTerm.Color(red: 32768, green: 32768, blue: 32768),
-            SwiftTerm.Color(red: 65535, green: 32768, blue: 32768),
-            SwiftTerm.Color(red: 32768, green: 65535, blue: 32768),
-            SwiftTerm.Color(red: 65535, green: 65535, blue: 32768),
-            SwiftTerm.Color(red: 32768, green: 32768, blue: 65535),
-            SwiftTerm.Color(red: 65535, green: 32768, blue: 65535),
-            SwiftTerm.Color(red: 32768, green: 65535, blue: 65535),
-            SwiftTerm.Color(red: 65535, green: 65535, blue: 65535)
-        ],
-        isLight: false
-    ),
-    ThemeColor(
-        name: "Light",
-        foreground: SwiftTerm.Color(red: 0, green: 0, blue: 0),
-        background: SwiftTerm.Color(red: 65535, green: 65535, blue: 65535),
-        ansiColors: [
-            SwiftTerm.Color(red: 0, green: 0, blue: 0),
-            SwiftTerm.Color(red: 65535, green: 0, blue: 0),
-            SwiftTerm.Color(red: 0, green: 65535, blue: 0),
-            SwiftTerm.Color(red: 65535, green: 65535, blue: 0),
-            SwiftTerm.Color(red: 0, green: 0, blue: 65535),
-            SwiftTerm.Color(red: 65535, green: 0, blue: 65535),
-            SwiftTerm.Color(red: 0, green: 65535, blue: 65535),
-            SwiftTerm.Color(red: 65535, green: 65535, blue: 65535),
-            SwiftTerm.Color(red: 32768, green: 32768, blue: 32768),
-            SwiftTerm.Color(red: 65535, green: 32768, blue: 32768),
-            SwiftTerm.Color(red: 32768, green: 65535, blue: 32768),
-            SwiftTerm.Color(red: 65535, green: 65535, blue: 32768),
-            SwiftTerm.Color(red: 32768, green: 32768, blue: 65535),
-            SwiftTerm.Color(red: 65535, green: 32768, blue: 65535),
-            SwiftTerm.Color(red: 32768, green: 65535, blue: 65535),
-            SwiftTerm.Color(red: 65535, green: 65535, blue: 65535)
-        ],
-        isLight: true
-    )
-]
+let themes: [ThemeColor] = {
+    var result: [ThemeColor] = []
+    
+    // 安全添加主题，如果解析失败则跳过
+    func safeAddTheme(title: String, xrdb: String) {
+        if let theme = ThemeColor.fromXrdb(title: title, xrdb: xrdb) {
+            result.append(theme)
+        } else {
+            print("警告: 无法解析主题 \(title)")
+        }
+    }
+    
+    safeAddTheme(title: "Adventure Time", xrdb: themeAdventureTime)
+    safeAddTheme(title: "Dark", xrdb: themeBuiltinDark)
+    safeAddTheme(title: "Django", xrdb: themeDjango)
+    safeAddTheme(title: "Light", xrdb: themeBuiltinLight)
+    safeAddTheme(title: "Material", xrdb: themeMaterial)
+    safeAddTheme(title: "Ocean", xrdb: themeOcean)
+    safeAddTheme(title: "Pro", xrdb: themePro)
+    safeAddTheme(title: "Solarized Dark", xrdb: themeSolarizedDark)
+    safeAddTheme(title: "Solarized Light", xrdb: themeSolarizedLight)
+    safeAddTheme(title: "Tango Dark", xrdb: themeTangoDark)
+    safeAddTheme(title: "Tango Light", xrdb: themeTangoLight)
+    
+    // 确保至少有一个有效的主题
+    if result.isEmpty {
+        // 创建一个默认的暗色主题
+        let ansiColors = [
+            SwiftTerm.Color(red: 0, green: 0, blue: 0),                // 黑色
+            SwiftTerm.Color(red: 0xBB00, green: 0, blue: 0),           // 红色
+            SwiftTerm.Color(red: 0, green: 0xBB00, blue: 0),           // 绿色
+            SwiftTerm.Color(red: 0xBB00, green: 0xBB00, blue: 0),      // 黄色
+            SwiftTerm.Color(red: 0, green: 0, blue: 0xBB00),           // 蓝色
+            SwiftTerm.Color(red: 0xBB00, green: 0, blue: 0xBB00),      // 洋红
+            SwiftTerm.Color(red: 0, green: 0xBB00, blue: 0xBB00),      // 青色
+            SwiftTerm.Color(red: 0xBBBB, green: 0xBBBB, blue: 0xBBBB), // 白色
+            SwiftTerm.Color(red: 0x5555, green: 0x5555, blue: 0x5555), // 亮黑
+            SwiftTerm.Color(red: 0xFF55, green: 0x5555, blue: 0x5555), // 亮红
+            SwiftTerm.Color(red: 0x55FF, green: 0xFF55, blue: 0x5555), // 亮绿
+            SwiftTerm.Color(red: 0xFFFF, green: 0xFF55, blue: 0x5555), // 亮黄
+            SwiftTerm.Color(red: 0x5555, green: 0x5555, blue: 0xFF55), // 亮蓝
+            SwiftTerm.Color(red: 0xFF55, green: 0x5555, blue: 0xFF55), // 亮洋红
+            SwiftTerm.Color(red: 0x5555, green: 0xFF55, blue: 0xFF55), // 亮青
+            SwiftTerm.Color(red: 0xFFFF, green: 0xFFFF, blue: 0xFFFF)  // 亮白
+        ]
+        
+        // 手动构建一个基本的暗色主题
+        let defaultDark = ThemeColor(
+            name: "DefaultDark", 
+            ansi: ansiColors, 
+            background: SwiftTerm.Color(red: 0, green: 0, blue: 0), 
+            foreground: SwiftTerm.Color(red: 0xBBBB, green: 0xBBBB, blue: 0xBBBB), 
+            cursor: SwiftTerm.Color(red: 0xBBBB, green: 0xBBBB, blue: 0xBBBB), 
+            cursorText: SwiftTerm.Color(red: 0, green: 0, blue: 0), 
+            selectedText: SwiftTerm.Color(red: 0, green: 0, blue: 0), 
+            selectionColor: SwiftTerm.Color(red: 0x3333, green: 0x6666, blue: 0xCCCC)
+        )
+        result.append(defaultDark)
+    }
+    
+    return result
+}()
 
 // 应用设置
 class Settings: ObservableObject {
@@ -150,10 +136,36 @@ class Settings: ObservableObject {
         backgroundStyle = defaults.string(forKey: "backgroundStyle") ?? "Solid"
     }
     
+    // 判断一个颜色是否为亮色
+    func isLightColor(_ color: SwiftTerm.Color) -> Bool {
+        let r = Double(color.red) / 65535.0
+        let g = Double(color.green) / 65535.0
+        let b = Double(color.blue) / 65535.0
+        let brightness = r * 0.299 + g * 0.587 + b * 0.114
+        return brightness > 0.5
+    }
+    
     // 更新所有终端窗口的主题
     func updateAllTerminalsTheme() {
-        // 这里可以实现更新所有终端窗口的主题的逻辑
-        // 如果有必要，可以通过 NotificationCenter 发送通知
+        // 通过通知中心发送主题更改通知
+        NotificationCenter.default.post(
+            name: Notification.Name("ThemeChanged"),
+            object: nil,
+            userInfo: ["themeName": themeName]
+        )
+        
+        // 尝试获取主窗口的ViewController并应用主题
+        if let mainWindow = NSApplication.shared.mainWindow,
+           let viewController = mainWindow.contentViewController as? ViewController {
+            viewController.applyTheme(themeName: themeName)
+        }
+        
+        // 获取所有窗口并尝试应用主题
+        for window in NSApplication.shared.windows {
+            if let viewController = window.contentViewController as? ViewController {
+                viewController.applyTheme(themeName: themeName)
+            }
+        }
     }
 }
 
