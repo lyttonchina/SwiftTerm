@@ -148,6 +148,7 @@
 			mainGroup = 49BD1A51224207B4005A2252;
 			packageReferences = (
 				498667032575F1FD006BFFA0 /* XCRemoteSwiftPackageReference "SwiftSH" */,
+				7524779725589900001B12E7 /* XCLocalSwiftPackageReference ".." */,
 			);
 			productRefGroup = 49BD1A5B224207B5005A2252 /* Products */;
 			projectDirPath = "";
@@ -393,11 +394,16 @@
 				kind = branch;
 			};
 		};
+		7524779725589900001B12E7 /* XCLocalSwiftPackageReference ".." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ..;
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		4959FFDA2447F971001F42C0 /* SwiftTerm */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = 7524779725589900001B12E7 /* XCLocalSwiftPackageReference ".." */;
 			productName = SwiftTerm;
 		};
 		498667042575F1FD006BFFA0 /* SwiftSH */ = {
