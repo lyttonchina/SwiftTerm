@@ -87,6 +87,53 @@ extension TerminalView {
         }
     }
     
+    // 私有辅助方法，处理字体变化的核心逻辑
+    private func performFontChange(newFont: CTFont, clearScreen: Bool = false) {
+        // 记录当前光标位置，便于稍后恢复
+        let originalCursorX = terminal.buffer.x
+        let originalCursorY = terminal.buffer.y
+        
+        #if os(macOS)
+        // 停用动画以减少闪烁
+        NSAnimationContext.beginGrouping()
+        NSAnimationContext.current.duration = 0
+        #endif
+        
+        // 更新字体而不清屏
+        setFont(newFont, clearScreen: clearScreen)
+        
+        // 计算新的终端尺寸
+        let newCols = Int(frame.width / cellDimension.width)
+        let newRows = Int(frame.height / cellDimension.height)
+        
+        // 调整终端内容，但不触发窗口大小变化
+        if newCols != terminal.cols || newRows != terminal.rows {
+            // 保存当前内容
+            terminal.resize(cols: newCols, rows: newRows)
+            
+            // 尝试恢复光标位置
+            if originalCursorX < newCols && originalCursorY < newRows {
+                terminal.buffer.x = originalCursorX
+                terminal.buffer.y = originalCursorY
+            }
+        }
+        
+        // 手动触发sizeChanged回调，但标记为字体大小变化
+        if let terminalDelegate = self.terminalDelegate {
+            terminalDelegate.sizeChanged(source: self, newCols: terminal.cols, newRows: terminal.rows)
+        }
+        
+        // 强制重绘
+        #if os(macOS)
+        self.needsDisplay = true
+        
+        // 结束动画组
+        NSAnimationContext.endGrouping()
+        #elseif os(iOS) || os(visionOS)
+        self.setNeedsDisplay(self.bounds)
+        #endif
+    }
+    
     /// 平滑更改字体大小而不调整窗口尺寸
     /// - Parameter size: 新的字体大小
     public func changeFontSizeSmoothly(_ size: CGFloat) {
@@ -96,29 +143,12 @@ extension TerminalView {
         #if os(macOS)
         // 创建新字体
         let newFont = NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
-        
-        // 停用动画以减少闪烁
-        NSAnimationContext.beginGrouping()
-        NSAnimationContext.current.duration = 0
-        
-        // 更新字体而不清屏
-        setFont(newFont, clearScreen: false)
-        
-        // 强制重绘
-        self.needsDisplay = true
-        
-        // 结束动画组
-        NSAnimationContext.endGrouping()
         #elseif os(iOS) || os(visionOS)
         // 创建新字体
         let newFont = UIFont.monospacedSystemFont(ofSize: size, weight: .regular)
-        
-        // 更新字体而不清屏
-        setFont(newFont, clearScreen: false)
-        
-        // 强制重绘
-        self.setNeedsDisplay(self.bounds)
         #endif
+        
+        performFontChange(newFont: newFont)
         
         // 延迟重置标志，确保所有大小变更处理已完成
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
@@ -143,19 +173,6 @@ extension TerminalView {
         } else {
             newFont = NSFont.monospacedSystemFont(ofSize: actualSize, weight: .regular)
         }
-        
-        // 停用动画以减少闪烁
-        NSAnimationContext.beginGrouping()
-        NSAnimationContext.current.duration = 0
-        
-        // 更新字体而不清屏
-        setFont(newFont, clearScreen: false)
-        
-        // 强制重绘
-        self.needsDisplay = true
-        
-        // 结束动画组
-        NSAnimationContext.endGrouping()
         #elseif os(iOS) || os(visionOS)
         // 尝试创建指定字体，如果失败则使用系统等宽字体
         let newFont: UIFont
@@ -164,13 +181,9 @@ extension TerminalView {
         } else {
             newFont = UIFont.monospacedSystemFont(ofSize: actualSize, weight: .regular)
         }
-        
-        // 更新字体而不清屏
-        setFont(newFont, clearScreen: false)
-        
-        // 强制重绘
-        self.setNeedsDisplay(self.bounds)
         #endif
+        
+        performFontChange(newFont: newFont)
         
         // 延迟重置标志，确保所有大小变更处理已完成
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
