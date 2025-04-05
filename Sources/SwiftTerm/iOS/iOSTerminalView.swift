@@ -198,6 +198,15 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         }
     }
     
+    /// 设置字体而不清屏的方法
+    public func setFont(_ newFont: UIFont, clearScreen: Bool = true) {
+        fontSet = FontSet(font: newFont)
+        resetFont(clearScreen: clearScreen)
+        if clearScreen {
+            selectNone()
+        }
+    }
+    
     /// Sets the various fonts to be used by the terminal to render text, their size is ignored
     /// - Parameters:
     ///  - normal: The font used by default for most text

@@ -8,6 +8,7 @@
 #if os(macOS) || os(iOS) || os(visionOS)
 import Foundation
 import CoreGraphics
+import CoreText
 import SwiftUI
 #if os(iOS) || os(visionOS)
 import UIKit
@@ -97,10 +98,13 @@ extension TerminalView {
         // 停用动画以减少闪烁
         NSAnimationContext.beginGrouping()
         NSAnimationContext.current.duration = 0
-        #endif
         
         // 更新字体而不清屏
-        setFont(newFont, clearScreen: clearScreen)
+        setFont(newFont as NSFont, clearScreen: clearScreen)
+        #elseif os(iOS) || os(visionOS)
+        // 更新字体而不清屏
+        setFont(newFont as UIFont, clearScreen: clearScreen)
+        #endif
         
         // 计算新的终端尺寸
         let newCols = Int(frame.width / cellDimension.width)
@@ -143,12 +147,12 @@ extension TerminalView {
         #if os(macOS)
         // 创建新字体
         let newFont = NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
+        performFontChange(newFont: newFont as CTFont)
         #elseif os(iOS) || os(visionOS)
         // 创建新字体
         let newFont = UIFont.monospacedSystemFont(ofSize: size, weight: .regular)
+        performFontChange(newFont: newFont as CTFont)
         #endif
-        
-        performFontChange(newFont: newFont)
         
         // 延迟重置标志，确保所有大小变更处理已完成
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
@@ -163,7 +167,11 @@ extension TerminalView {
         // 设置字体大小更改标志
         setFontSizeChanging(true)
         
+        #if os(macOS)
         let actualSize = size == 0 ? NSFont.systemFontSize : size
+        #elseif os(iOS) || os(visionOS)
+        let actualSize = size == 0 ? UIFont.systemFontSize : size
+        #endif
         
         #if os(macOS)
         // 尝试创建指定字体，如果失败则使用系统等宽字体
@@ -173,6 +181,7 @@ extension TerminalView {
         } else {
             newFont = NSFont.monospacedSystemFont(ofSize: actualSize, weight: .regular)
         }
+        performFontChange(newFont: newFont as! CTFont)
         #elseif os(iOS) || os(visionOS)
         // 尝试创建指定字体，如果失败则使用系统等宽字体
         let newFont: UIFont
@@ -181,9 +190,8 @@ extension TerminalView {
         } else {
             newFont = UIFont.monospacedSystemFont(ofSize: actualSize, weight: .regular)
         }
+        performFontChange(newFont: newFont as CTFont)
         #endif
-        
-        performFontChange(newFont: newFont)
         
         // 延迟重置标志，确保所有大小变更处理已完成
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
