@@ -173,7 +173,7 @@ extension TerminalView {
             
             // 保持当前视图框架大小不变，避免干扰布局系统
             // 这对应于viewWillLayoutSubviews中的简化版本逻辑
-            let currentFrame = self.frame
+            //let currentFrame = self.frame
             
             // 再次触发回调，通知已恢复原始尺寸
             if let terminalDelegate = self.terminalDelegate {
