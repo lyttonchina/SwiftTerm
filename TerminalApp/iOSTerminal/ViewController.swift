@@ -128,26 +128,9 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate {
     
     override func viewWillLayoutSubviews() {
         if useAutoLayout, #available(iOS 15.0, *) {
-            // 使用自动布局，不需要手动设置框架
         } else {
-            // 获取最佳框架尺寸
-            let frame = makeFrame(keyboardDelta: keyboardDelta)
-            
-            // 如果终端视图正在更改字体大小，保持内容区域大小不变
-            if tv.isFontSizeChanging() {
-                // 只更新位置，保持大小不变
-                tv.frame = CGRect(
-                    x: frame.origin.x,
-                    y: frame.origin.y,
-                    width: tv.frame.width,  // 保持现有宽度
-                    height: tv.frame.height // 保持现有高度
-                )
-            } else {
-                // 正常情况下更新整个框架
-                tv.frame = frame
-            }
+            tv.frame = makeFrame (keyboardDelta: keyboardDelta)
         }
-        
         if transparent {
             tv.backgroundColor = UIColor.clear
         }
