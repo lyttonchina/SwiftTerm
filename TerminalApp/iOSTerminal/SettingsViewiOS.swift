@@ -89,7 +89,7 @@ var fontNames: [String] = ["Menlo", "Courier", "Courier New", "Monaco"]
 
 // 默认主题（基本黑白）
 let defaultTheme = ThemeColor(
-    name: "Default",
+    name: "System Default",
     ansi: [
         Color(red: 0, green: 0, blue: 0),         // Black
         Color(red: 65535, green: 0, blue: 0),     // Red
@@ -531,6 +531,7 @@ struct ThemeSelector: View {
                         ThemePreview(themeColor: theme, selected: themeName == theme.name)
                             .frame(width: 120, height: 90)
                             .onTapGesture {
+                                print("选择主题: \(theme.name)")
                                 self.themeName = theme.name
                                 self.callback(theme.name)
                                 settings.updateAllTerminalsTheme()
@@ -636,10 +637,9 @@ struct TerminalSettingsView: View {
             Form {
                 Section {
                     // 主题选择
-                    ThemeSelector(themeName: $themeName, showDefault: true) { newTheme in
-                        // 实时预览主题
+                    ThemeSelector(themeName: $themeName) { newTheme in
+                        // 设置主题
                         settings.themeName = newTheme
-                        // 通知将自动触发applyTheme
                     }
                 }
                 
