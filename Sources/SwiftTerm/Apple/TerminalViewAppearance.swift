@@ -89,7 +89,7 @@ extension TerminalView {
         self.nativeForegroundColor = term2uicolor(theme.foreground)
         self.caretColor = term2uicolor(theme.cursor)
         self.selectedTextBackgroundColor = term2uicolor(theme.selectionColor)
-        print("TerminalView: iOS设置原生背景色: \(bgColor), 当前backgroundColor: \(self.backgroundColor ?? UIColor.clear)")
+        print("TerminalView: iOS设置原生背景色: \(bgColor), 当前backgroundColor: \(self.backgroundColor)")
         #endif
         
         self.setNeedsDisplay(self.bounds)
@@ -100,7 +100,7 @@ extension TerminalView {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             #if os(iOS) || os(visionOS)
-            print("TerminalView: 主题应用完成后的backgroundColor: \(self.backgroundColor ?? UIColor.clear)")
+            print("TerminalView: 主题应用完成后的backgroundColor: \(self.backgroundColor)")
             #endif
             self.setBufferPreservation(false)
         }
@@ -116,18 +116,18 @@ extension TerminalView {
             #if os(iOS) || os(visionOS)
             if let containerView = self.superview as? TerminalContainerView {
                 // 直接设置容器背景色
-                print("TerminalView: 直接父视图是容器，当前背景色: \(self.backgroundColor ?? UIColor.clear)")
+                print("TerminalView: 直接父视图是容器，当前背景色: \(self.backgroundColor)")
                 containerView.backgroundColor = self.backgroundColor
-                print("TerminalView: 设置容器背景色完成: \(containerView.backgroundColor ?? UIColor.clear)")
+                print("TerminalView: 设置容器背景色完成: \(containerView.backgroundColor)")
             } else if let superview = self.superview {
                 // 如果直接父视图不是容器，检查所有祖先视图
                 print("TerminalView: 直接父视图不是容器，开始搜索祖先视图")
                 var currentView: UIView? = superview
                 while currentView != nil {
                     if let containerView = currentView as? TerminalContainerView {
-                        print("TerminalView: 找到祖先容器视图，当前背景色: \(self.backgroundColor ?? UIColor.clear)")
+                        print("TerminalView: 找到祖先容器视图，当前背景色: \(self.backgroundColor)")
                         containerView.backgroundColor = self.backgroundColor
-                        print("TerminalView: 设置祖先容器背景色完成: \(containerView.backgroundColor ?? UIColor.clear)")
+                        print("TerminalView: 设置祖先容器背景色完成: \(containerView.backgroundColor)")
                         break
                     }
                     currentView = currentView?.superview

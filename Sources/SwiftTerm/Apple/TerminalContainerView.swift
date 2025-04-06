@@ -6,15 +6,20 @@
 
 #if os(macOS) || os(iOS) || os(visionOS)
 import Foundation
+import CoreGraphics
+import SwiftTerm
+
+#if os(iOS) || os(visionOS)
+import UIKit
+public typealias ContainerView = UIView
+public typealias PlatformView = UIView
+public typealias EdgeInsets = UIEdgeInsets
+#endif
 
 #if os(macOS)
 import AppKit
 public typealias PlatformView = NSView
 public typealias EdgeInsets = NSEdgeInsets
-#elseif os(iOS) || os(visionOS)
-import UIKit
-public typealias PlatformView = UIView
-public typealias EdgeInsets = UIEdgeInsets
 #endif
 
 /// A container view that wraps a terminal view and provides configurable margins
@@ -59,7 +64,7 @@ public class TerminalContainerView: PlatformView {
     public func syncBackgroundColor() {
         #if os(iOS) || os(visionOS)
         if let tv = terminalView as? TerminalView {
-            print("TerminalContainerView: 尝试同步背景色，终端背景色: \(tv.backgroundColor ?? UIColor.clear)")
+            print("TerminalContainerView: 尝试同步背景色，终端背景色: \(tv.backgroundColor)")
             // 如果背景色是透明的，保持容器也透明
             if tv.backgroundColor == UIColor.clear {
                 self.backgroundColor = UIColor.clear
@@ -73,7 +78,7 @@ public class TerminalContainerView: PlatformView {
                     print("TerminalContainerView: 终端背景色为 nil，设置默认黑色背景")
                 }
             }
-            print("TerminalContainerView: 同步后容器背景色: \(self.backgroundColor ?? UIColor.clear)")
+            print("TerminalContainerView: 同步后容器背景色: \(self.backgroundColor)")
         } else {
             print("TerminalContainerView: 无法从终端获取背景色，找不到 TerminalView 实例")
             // 设置默认背景色
