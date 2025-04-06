@@ -54,6 +54,7 @@ extension TerminalView {
     
     /// 应用主题并平滑切换
     public func applyTheme(theme: TerminalThemeColor) {
+        print("TerminalView: 开始应用主题，背景色: \(term2color(theme.background))")
         setBufferPreservation(true)
         
         // 设置ANSI颜色数组
@@ -74,17 +75,86 @@ extension TerminalView {
         self.nativeForegroundColor = term2nscolor(theme.foreground)
         self.caretColor = term2nscolor(theme.cursor)
         self.selectedTextBackgroundColor = term2nscolor(theme.selectionColor)
+        print("TerminalView: macOS设置原生背景色: \(term2nscolor(theme.background))")
         #elseif os(iOS) || os(visionOS)
-        self.nativeBackgroundColor = term2uicolor(theme.background)
+        let bgColor = term2uicolor(theme.background)
+        self.nativeBackgroundColor = bgColor
+        
+        // 确保 backgroundColor 被正确设置
+        if self.backgroundColor == nil {
+            print("TerminalView: backgroundColor 为 nil，手动设置为 \(bgColor)")
+            self.backgroundColor = bgColor
+        }
+        
         self.nativeForegroundColor = term2uicolor(theme.foreground)
         self.caretColor = term2uicolor(theme.cursor)
         self.selectedTextBackgroundColor = term2uicolor(theme.selectionColor)
+        print("TerminalView: iOS设置原生背景色: \(bgColor), 当前backgroundColor: \(self.backgroundColor)")
         #endif
         
         self.setNeedsDisplay(self.bounds)
         
+        // 更新容器视图的背景色，如果在容器内
+        updateContainerBackgroundColor()
+        
         DispatchQueue.main.async { [weak self] in
-            self?.setBufferPreservation(false)
+            guard let self = self else { return }
+            #if os(iOS) || os(visionOS)
+            print("TerminalView: 主题应用完成后的backgroundColor: \(self.backgroundColor)")
+            #endif
+            self.setBufferPreservation(false)
+        }
+    }
+    
+    /// 更新容器视图的背景色
+    private func updateContainerBackgroundColor() {
+        print("TerminalView: 尝试更新容器背景色")
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            // 直接检查我们是否在容器视图内部
+            #if os(iOS) || os(visionOS)
+            if let containerView = self.superview as? TerminalContainerView {
+                // 直接设置容器背景色
+                print("TerminalView: 直接父视图是容器，当前背景色: \(self.backgroundColor)")
+                containerView.backgroundColor = self.backgroundColor
+                print("TerminalView: 设置容器背景色完成: \(containerView.backgroundColor)")
+            } else if let superview = self.superview {
+                // 如果直接父视图不是容器，检查所有祖先视图
+                print("TerminalView: 直接父视图不是容器，开始搜索祖先视图")
+                var currentView: UIView? = superview
+                while currentView != nil {
+                    if let containerView = currentView as? TerminalContainerView {
+                        print("TerminalView: 找到祖先容器视图，当前背景色: \(self.backgroundColor)")
+                        containerView.backgroundColor = self.backgroundColor
+                        print("TerminalView: 设置祖先容器背景色完成: \(containerView.backgroundColor)")
+                        break
+                    }
+                    currentView = currentView?.superview
+                }
+                
+                if currentView == nil {
+                    print("TerminalView: 在视图层次中没有找到容器视图")
+                }
+            } else {
+                print("TerminalView: 没有父视图")
+            }
+            #elseif os(macOS)
+            if let containerView = self.superview as? TerminalContainerView {
+                // 直接设置容器背景色
+                containerView.layer?.backgroundColor = self.layer?.backgroundColor
+            } else if let superview = self.superview {
+                // 如果直接父视图不是容器，检查所有祖先视图
+                var currentView: NSView? = superview
+                while currentView != nil {
+                    if let containerView = currentView as? TerminalContainerView {
+                        containerView.layer?.backgroundColor = self.layer?.backgroundColor
+                        break
+                    }
+                    currentView = currentView?.superview
+                }
+            }
+            #endif
         }
     }
     

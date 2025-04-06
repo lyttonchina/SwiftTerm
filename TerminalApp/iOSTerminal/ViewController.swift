@@ -13,6 +13,7 @@ import SwiftUI
 
 class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, UIAdaptivePresentationControllerDelegate {
     var tv: TerminalView!
+    var containerView: TerminalContainerView!
     var transparent: Bool = false
     
     // 设置状态
@@ -154,12 +155,26 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
             view.layer.addSublayer(layer)
         }
         
-        // 创建一个包含简单边距的容器，包装终端视图
-        let containerInsets = NSDirectionalEdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
-        let containerView = tv.withContainer(insets: containerInsets)
+        // 创建一个容器视图，它在终端视图周围提供简单的边距
+        let containerView = tv.withContainer()
+        containerView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         
-        // 将容器视图添加到视图层次结构中
+        // 确保容器有正确的背景色
+        print("ViewDidLoad: 终端视图的backgroundColor: \(tv.backgroundColor ?? UIColor.clear)")
+        
+        // 根据透明模式设置容器视图背景色
+        if !transparent {
+            containerView.backgroundColor = tv.backgroundColor
+        } else {
+            containerView.backgroundColor = UIColor.clear
+        }
+        print("ViewDidLoad: 设置容器背景色为: \(containerView.backgroundColor ?? UIColor.clear)")
+        
+        // 将容器视图添加到视图层次结构
         view.addSubview(containerView)
+        
+        // 保存对容器视图的引用
+        self.containerView = containerView
         
         setupKeyboardMonitor()
         
@@ -394,8 +409,11 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
     }
     
     // 应用主题
-    func applyTheme(themeName: String) {
-        if let theme = themes.first(where: { $0.name == themeName }) ?? themes.first {
+    func applyTheme(_ name: String) {
+        // 找到主题
+        if let theme = themes.first(where: { $0.name == name }) ?? themes.first {
+            print("ViewController: 开始应用主题: \(name)")
+            
             // 创建用于TerminalView的ThemeColor
             let terminalTheme = TerminalView.TerminalThemeColor(
                 ansiColors: theme.ansi,
@@ -406,15 +424,41 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
                 isLight: Double(theme.background.brightness) > 0.5
             )
             
-            // 应用主题到终端视图
+            // 应用主题
             tv.applyTheme(theme: terminalTheme)
+            
+            print("ViewController: 应用主题后终端背景色: \(tv.backgroundColor ?? UIColor.clear)")
+            
+            // 根据透明模式设置容器视图背景色
+            if !transparent {
+                containerView.backgroundColor = tv.backgroundColor
+            } else {
+                containerView.backgroundColor = UIColor.clear
+            }
+            
+            print("ViewController: 容器背景色设置完成: \(containerView.backgroundColor ?? UIColor.clear)")
+            
+            // 保存主题名
+            UserDefaults.standard.set(name, forKey: "lastTheme")
         }
     }
     
     // 处理主题变更通知
     @objc func handleThemeChange(_ notification: Notification) {
         if let themeName = notification.userInfo?["themeName"] as? String {
-            applyTheme(themeName: themeName)
+            print("ViewController: 收到主题变更通知: \(themeName)")
+            
+            // 应用主题
+            applyTheme(themeName)
+            
+            // 根据透明模式设置容器视图背景色
+            if !transparent {
+                containerView.backgroundColor = tv.backgroundColor
+            } else {
+                containerView.backgroundColor = UIColor.clear
+            }
+            
+            print("ViewController: 主题变更通知中设置容器背景色: \(containerView.backgroundColor ?? UIColor.clear)")
         }
     }
     
