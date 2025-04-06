@@ -81,12 +81,6 @@ class Settings: ObservableObject {
             object: nil,
             userInfo: ["themeName": themeName]
         )
-        
-        // 尝试获取主窗口的ViewController并应用主题
-        if let window = UIApplication.shared.windows.first,
-           let viewController = window.rootViewController as? ViewController {
-            viewController.applyTheme(themeName: themeName)
-        }
     }
 }
 
@@ -122,10 +116,325 @@ let defaultTheme = ThemeColor(
     selectionColor: Color(red: 25000, green: 25000, blue: 65535)
 )
 
+// 从macOS版本复制的主题字符串
+let themeBuiltinDark = """
+#define Ansi_0_Color #000000
+#define Ansi_1_Color #bb0000
+#define Ansi_10_Color #55ff55
+#define Ansi_11_Color #ffff55
+#define Ansi_12_Color #5555ff
+#define Ansi_13_Color #ff55ff
+#define Ansi_14_Color #55ffff
+#define Ansi_15_Color #ffffff
+#define Ansi_2_Color #00bb00
+#define Ansi_3_Color #bbbb00
+#define Ansi_4_Color #0000bb
+#define Ansi_5_Color #bb00bb
+#define Ansi_6_Color #00bbbb
+#define Ansi_7_Color #bbbbbb
+#define Ansi_8_Color #555555
+#define Ansi_9_Color #ff5555
+#define Background_Color #000000
+#define Badge_Color #ff0000
+#define Bold_Color #ffffff
+#define Cursor_Color #bbbbbb
+#define Cursor_Guide_Color #a6e8ff
+#define Cursor_Text_Color #ffffff
+#define Foreground_Color #bbbbbb
+#define Link_Color #0645ad
+#define Selected_Text_Color #000000
+#define Selection_Color #b5d5ff
+"""
+
+let themeBuiltinLight = """
+#define Ansi_0_Color #000000
+#define Ansi_1_Color #bb0000
+#define Ansi_10_Color #55ff55
+#define Ansi_11_Color #ffff55
+#define Ansi_12_Color #5555ff
+#define Ansi_13_Color #ff55ff
+#define Ansi_14_Color #55ffff
+#define Ansi_15_Color #ffffff
+#define Ansi_2_Color #00bb00
+#define Ansi_3_Color #bbbb00
+#define Ansi_4_Color #0000bb
+#define Ansi_5_Color #bb00bb
+#define Ansi_6_Color #00bbbb
+#define Ansi_7_Color #bbbbbb
+#define Ansi_8_Color #555555
+#define Ansi_9_Color #ff5555
+#define Background_Color #ffffff
+#define Badge_Color #ff0000
+#define Bold_Color #000000
+#define Cursor_Color #000000
+#define Cursor_Guide_Color #a6e8ff
+#define Cursor_Text_Color #ffffff
+#define Foreground_Color #000000
+#define Link_Color #0645ad
+#define Selected_Text_Color #000000
+#define Selection_Color #b5d5ff
+"""
+
+let themeSolarizedDark = """
+#define Ansi_0_Color #073642
+#define Ansi_1_Color #dc322f
+#define Ansi_10_Color #586e75
+#define Ansi_11_Color #657b83
+#define Ansi_12_Color #839496
+#define Ansi_13_Color #6c71c4
+#define Ansi_14_Color #93a1a1
+#define Ansi_15_Color #fdf6e3
+#define Ansi_2_Color #859900
+#define Ansi_3_Color #b58900
+#define Ansi_4_Color #268bd2
+#define Ansi_5_Color #d33682
+#define Ansi_6_Color #2aa198
+#define Ansi_7_Color #eee8d5
+#define Ansi_8_Color #002b36
+#define Ansi_9_Color #cb4b16
+#define Background_Color #002b36
+#define Badge_Color #ff2600
+#define Bold_Color #93a1a1
+#define Cursor_Color #839496
+#define Cursor_Guide_Color #b3ecff
+#define Cursor_Text_Color #073642
+#define Foreground_Color #839496
+#define Link_Color #005cbb
+#define Selected_Text_Color #93a1a1
+#define Selection_Color #073642
+"""
+
+let themeSolarizedLight = """
+#define Ansi_0_Color #073642
+#define Ansi_1_Color #dc322f
+#define Ansi_10_Color #586e75
+#define Ansi_11_Color #657b83
+#define Ansi_12_Color #839496
+#define Ansi_13_Color #6c71c4
+#define Ansi_14_Color #93a1a1
+#define Ansi_15_Color #fdf6e3
+#define Ansi_2_Color #859900
+#define Ansi_3_Color #b58900
+#define Ansi_4_Color #268bd2
+#define Ansi_5_Color #d33682
+#define Ansi_6_Color #2aa198
+#define Ansi_7_Color #eee8d5
+#define Ansi_8_Color #002b36
+#define Ansi_9_Color #cb4b16
+#define Background_Color #ffffff
+#define Badge_Color #ff2600
+#define Bold_Color #586e75
+#define Cursor_Color #657b83
+#define Cursor_Guide_Color #b3ecff
+#define Cursor_Text_Color #eee8d5
+#define Foreground_Color #657b83
+#define Link_Color #005cbb
+#define Selected_Text_Color #586e75
+#define Selection_Color #eee8d5
+"""
+
+let themeMaterial = """
+#define Ansi_0_Color #212121
+#define Ansi_1_Color #b7141f
+#define Ansi_10_Color #7aba3a
+#define Ansi_11_Color #ffea2e
+#define Ansi_12_Color #54a4f3
+#define Ansi_13_Color #aa4dbc
+#define Ansi_14_Color #26bbd1
+#define Ansi_15_Color #d9d9d9
+#define Ansi_2_Color #457b24
+#define Ansi_3_Color #f6981e
+#define Ansi_4_Color #134eb2
+#define Ansi_5_Color #560088
+#define Ansi_6_Color #0e717c
+#define Ansi_7_Color #efefef
+#define Ansi_8_Color #424242
+#define Ansi_9_Color #e83b3f
+#define Background_Color #eaeaea
+#define Bold_Color #b7141f
+#define Cursor_Color #16afca
+#define Cursor_Text_Color #2e2e2d
+#define Foreground_Color #232322
+#define Selected_Text_Color #4e4e4e
+#define Selection_Color #c2c2c2
+"""
+
+let themeOcean = """
+#define Ansi_0_Color #000000
+#define Ansi_1_Color #990000
+#define Ansi_10_Color #00d900
+#define Ansi_11_Color #e5e500
+#define Ansi_12_Color #0000ff
+#define Ansi_13_Color #e500e5
+#define Ansi_14_Color #00e5e5
+#define Ansi_15_Color #e5e5e5
+#define Ansi_2_Color #00a600
+#define Ansi_3_Color #999900
+#define Ansi_4_Color #0000b2
+#define Ansi_5_Color #b200b2
+#define Ansi_6_Color #00a6b2
+#define Ansi_7_Color #bfbfbf
+#define Ansi_8_Color #666666
+#define Ansi_9_Color #e50000
+#define Background_Color #224fbc
+#define Bold_Color #ffffff
+#define Cursor_Color #7f7f7f
+#define Cursor_Text_Color #ffffff
+#define Foreground_Color #ffffff
+#define Selected_Text_Color #ffffff
+#define Selection_Color #216dff
+"""
+
+let themeAdventureTime = """
+#define Ansi_0_Color #050404
+#define Ansi_1_Color #bd0013
+#define Ansi_10_Color #9eff6e
+#define Ansi_11_Color #efc11a
+#define Ansi_12_Color #1997c6
+#define Ansi_13_Color #9b5953
+#define Ansi_14_Color #c8faf4
+#define Ansi_15_Color #f6f5fb
+#define Ansi_2_Color #4ab118
+#define Ansi_3_Color #e7741e
+#define Ansi_4_Color #0f4ac6
+#define Ansi_5_Color #665993
+#define Ansi_6_Color #70a598
+#define Ansi_7_Color #f8dcc0
+#define Ansi_8_Color #4e7cbf
+#define Ansi_9_Color #fc5f5a
+#define Background_Color #1f1d45
+#define Bold_Color #bd0013
+#define Cursor_Color #efbf38
+#define Cursor_Text_Color #08080a
+#define Foreground_Color #f8dcc0
+#define Selected_Text_Color #f3d9c4
+#define Selection_Color #706b4e
+"""
+
+let themePro = """
+#define Ansi_0_Color #000000
+#define Ansi_1_Color #990000
+#define Ansi_10_Color #00d900
+#define Ansi_11_Color #e5e500
+#define Ansi_12_Color #0000ff
+#define Ansi_13_Color #e500e5
+#define Ansi_14_Color #00e5e5
+#define Ansi_15_Color #e5e5e5
+#define Ansi_2_Color #00a600
+#define Ansi_3_Color #999900
+#define Ansi_4_Color #2009db
+#define Ansi_5_Color #b200b2
+#define Ansi_6_Color #00a6b2
+#define Ansi_7_Color #bfbfbf
+#define Ansi_8_Color #666666
+#define Ansi_9_Color #e50000
+#define Background_Color #000000
+#define Bold_Color #ffffff
+#define Cursor_Color #4d4d4d
+#define Cursor_Text_Color #ffffff
+#define Foreground_Color #f2f2f2
+#define Selected_Text_Color #000000
+#define Selection_Color #414141
+"""
+
+let themeDjango = """
+#define Ansi_0_Color #000000
+#define Ansi_1_Color #fd6209
+#define Ansi_10_Color #73da70
+#define Ansi_11_Color #ffff94
+#define Ansi_12_Color #568264
+#define Ansi_13_Color #ffffff
+#define Ansi_14_Color #cfffd1
+#define Ansi_15_Color #ffffff
+#define Ansi_2_Color #41a83e
+#define Ansi_3_Color #ffe862
+#define Ansi_4_Color #245032
+#define Ansi_5_Color #f8f8f8
+#define Ansi_6_Color #9df39f
+#define Ansi_7_Color #ffffff
+#define Ansi_8_Color #323232
+#define Ansi_9_Color #ff943b
+#define Background_Color #0b2f20
+#define Bold_Color #f8f8f8
+#define Cursor_Color #336442
+#define Cursor_Text_Color #f8f8f8
+#define Foreground_Color #f8f8f8
+#define Selected_Text_Color #f8f8f8
+#define Selection_Color #245032
+"""
+
+let themeTangoDark = """
+#define Ansi_0_Color #000000
+#define Ansi_1_Color #cc0000
+#define Ansi_10_Color #8ae234
+#define Ansi_11_Color #fce94f
+#define Ansi_12_Color #729fcf
+#define Ansi_13_Color #ad7fa8
+#define Ansi_14_Color #34e2e2
+#define Ansi_15_Color #eeeeec
+#define Ansi_2_Color #4e9a06
+#define Ansi_3_Color #c4a000
+#define Ansi_4_Color #3465a4
+#define Ansi_5_Color #75507b
+#define Ansi_6_Color #06989a
+#define Ansi_7_Color #d3d7cf
+#define Ansi_8_Color #555753
+#define Ansi_9_Color #ef2929
+#define Background_Color #000000
+#define Badge_Color #ff0000
+#define Bold_Color #ffffff
+#define Cursor_Color #ffffff
+#define Cursor_Guide_Color #a6e8ff
+#define Cursor_Text_Color #000000
+#define Foreground_Color #ffffff
+#define Link_Color #0645ad
+#define Selected_Text_Color #000000
+#define Selection_Color #b5d5ff
+"""
+
+let themeTangoLight = """
+#define Ansi_0_Color #000000
+#define Ansi_1_Color #cc0000
+#define Ansi_10_Color #8ae234
+#define Ansi_11_Color #fce94f
+#define Ansi_12_Color #729fcf
+#define Ansi_13_Color #ad7fa8
+#define Ansi_14_Color #34e2e2
+#define Ansi_15_Color #eeeeec
+#define Ansi_2_Color #4e9a06
+#define Ansi_3_Color #c4a000
+#define Ansi_4_Color #3465a4
+#define Ansi_5_Color #75507b
+#define Ansi_6_Color #06989a
+#define Ansi_7_Color #d3d7cf
+#define Ansi_8_Color #555753
+#define Ansi_9_Color #ef2929
+#define Background_Color #ffffff
+#define Badge_Color #ff0000
+#define Bold_Color #000000
+#define Cursor_Color #000000
+#define Cursor_Guide_Color #a6e8ff
+#define Cursor_Text_Color #ffffff
+#define Foreground_Color #000000
+#define Link_Color #0645ad
+#define Selected_Text_Color #000000
+#define Selection_Color #b5d5ff
+"""
+
 // 主题列表
 var themes: [ThemeColor] = [
     defaultTheme,
-    // 添加更多预设主题...
+    ThemeColor.fromXrdb(title: "Dark", xrdb: themeBuiltinDark)!,
+    ThemeColor.fromXrdb(title: "Light", xrdb: themeBuiltinLight)!,
+    ThemeColor.fromXrdb(title: "Solarized Dark", xrdb: themeSolarizedDark)!,
+    ThemeColor.fromXrdb(title: "Solarized Light", xrdb: themeSolarizedLight)!,
+    ThemeColor.fromXrdb(title: "Material", xrdb: themeMaterial)!,
+    ThemeColor.fromXrdb(title: "Ocean", xrdb: themeOcean)!,
+    ThemeColor.fromXrdb(title: "Adventure Time", xrdb: themeAdventureTime)!,
+    ThemeColor.fromXrdb(title: "Pro", xrdb: themePro)!,
+    ThemeColor.fromXrdb(title: "Django", xrdb: themeDjango)!,
+    ThemeColor.fromXrdb(title: "Tango Dark", xrdb: themeTangoDark)!,
+    ThemeColor.fromXrdb(title: "Tango Light", xrdb: themeTangoLight)!,
 ]
 
 // 主题预览组件
@@ -329,30 +638,19 @@ struct TerminalSettingsView: View {
                     // 主题选择
                     ThemeSelector(themeName: $themeName, showDefault: true) { newTheme in
                         // 实时预览主题
-                        if let viewController = UIApplication.shared.windows.first?.rootViewController as? ViewController {
-                            viewController.applyTheme(themeName: newTheme)
-                        }
+                        settings.themeName = newTheme
+                        // 通知将自动触发applyTheme
                     }
                 }
                 
                 Section {
                     // 字体选择
                     FontSelector(fontName: $fontName)
-                        // 移除实时预览
-                        //.onReceive(Just(fontName)) { newFont in
-                        //    // 实时预览字体
-                        //    terminal.changeFontSmoothly(fontName: newFont, size: fontSize)
-                        //}
                 }
                 
                 Section {
                     // 字体大小选择
                     FontSizeSelector(fontName: fontName, fontSize: $fontSize)
-                        // 移除实时预览
-                        //.onReceive(Just(fontSize)) { newSize in
-                        //    // 实时预览字体大小
-                        //    terminal.changeFontSizeSmoothly(newSize)
-                        //}
                 }
                 
                 // 添加提示信息
@@ -370,6 +668,11 @@ struct TerminalSettingsView: View {
                 trailing: Button("保存") {
                     saveSettings()
                     isPresented = false
+                    
+                    // 应用字体设置
+                    if let viewController = UIApplication.shared.windows.first?.rootViewController as? ViewController {
+                        viewController.tv.changeFontSmoothly(fontName: settings.fontName, size: settings.fontSize)
+                    }
                 }
             )
         }

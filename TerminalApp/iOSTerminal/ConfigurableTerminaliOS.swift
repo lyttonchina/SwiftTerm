@@ -27,10 +27,20 @@ struct RunningTerminalConfig: View {
         // 获取当前的 ViewController 实例并应用设置
         if let viewController = UIApplication.shared.windows.first?.rootViewController as? ViewController {
             // 应用主题
-            viewController.applyTheme(themeName: style)
+            if let theme = themes.first(where: { $0.name == style }) ?? themes.first {
+                let terminalTheme = TerminalView.TerminalThemeColor(
+                    ansiColors: theme.ansi,
+                    foreground: theme.foreground, 
+                    background: theme.background,
+                    cursor: theme.cursor,
+                    selectionColor: theme.selectionColor,
+                    isLight: Double(theme.background.brightness) > 0.5
+                )
+                viewController.tv.applyTheme(theme: terminalTheme)
+            }
             
-            // 更新字体和字体大小（即使它们可能已经在预览中更新）
-            viewController.changeFontSmoothly(fontName, size: fontSize)
+            // 更新字体和字体大小
+            viewController.tv.changeFontSmoothly(fontName: fontName, size: fontSize)
         }
     }
 
@@ -121,7 +131,15 @@ struct RunningTerminalConfig: View {
                                 selectedTheme = theme.name
                                 // 实时预览
                                 if let viewController = UIApplication.shared.windows.first?.rootViewController as? ViewController {
-                                    viewController.applyTheme(themeName: theme.name)
+                                    let terminalTheme = TerminalView.TerminalThemeColor(
+                                        ansiColors: theme.ansi,
+                                        foreground: theme.foreground, 
+                                        background: theme.background,
+                                        cursor: theme.cursor,
+                                        selectionColor: theme.selectionColor,
+                                        isLight: Double(theme.background.brightness) > 0.5
+                                    )
+                                    viewController.tv.applyTheme(theme: terminalTheme)
                                 }
                             }
                         )

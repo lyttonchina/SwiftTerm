@@ -11,7 +11,7 @@ import SwiftTerm
 import Combine
 import SwiftUI
 
-class ViewController: UIViewController, ObservableObject, TerminalViewDelegate {
+class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, UIAdaptivePresentationControllerDelegate {
     var tv: TerminalView!
     var transparent: Bool = false
     
@@ -114,16 +114,45 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate {
         
         view.addSubview(tv)
         setupKeyboardMonitor()
-        onFirstRun()
+        
+        // 设置视图
+        setupSettingsButton()
+        
+        // 配置通知观察者
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleThemeChange),
+            name: Notification.Name("ThemeChanged"),
+            object: nil
+        )
+        
+        // 请求成为第一响应者
+        let _ = tv.becomeFirstResponder()
+        
+        // 初始化showingSettings状态
+        showingSettings = false
         
         // 启用主题切换优化
         TerminalView.enableThemeSwitchImprovement()
         
         // 应用当前主题
-        applyTheme(themeName: settings.themeName)
+        if let theme = themes.first(where: { $0.name == settings.themeName }) ?? themes.first {
+            // 创建用于TerminalView的ThemeColor
+            let terminalTheme = TerminalView.TerminalThemeColor(
+                ansiColors: theme.ansi,
+                foreground: theme.foreground, 
+                background: theme.background,
+                cursor: theme.cursor,
+                selectionColor: theme.selectionColor,
+                isLight: Double(theme.background.brightness) > 0.5
+            )
+            
+            // 直接调用 SwiftTerm 的 applyTheme 方法
+            tv.applyTheme(theme: terminalTheme)
+        }
         
         // 应用保存的字体和字体大小
-        changeFontSmoothly(settings.fontName, size: settings.fontSize)
+        tv.changeFontSmoothly(fontName: settings.fontName, size: settings.fontSize)
     }
     
     override func viewWillLayoutSubviews() {
@@ -240,38 +269,11 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate {
         return tv.frame.size
     }
     
-    func onFirstRun() {
-        // 设置视图
-        setupSettingsButton()
-        
-        // 配置通知观察者
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleThemeChange(_:)),
-            name: Notification.Name("ThemeChanged"),
-            object: nil
-        )
-        
-        // 应用存储的设置
-        applyTheme(themeName: settings.themeName)
-        
-        // 请求成为第一响应者
-        let _ = tv.becomeFirstResponder()
-        
-        // 初始化showingSettings状态
-        showingSettings = false
-    }
-    
     // MARK: - 设置功能
     
     func setupSettingsButton() {
         // 创建设置按钮
-        let settingsButton = UIBarButtonItem(
-            image: UIImage(systemName: "gear"),
-            style: .plain,
-            target: self,
-            action: #selector(openSettings)
-        )
+        let settingsButton = UIBarButtonItem(image: UIImage(systemName: "gear"), style: .plain, target: self, action: #selector(showSettings))
         
         // 如果是在导航控制器中，添加到导航栏
         if let navigationController = self.navigationController {
@@ -280,7 +282,7 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate {
             // 否则创建一个悬浮按钮
             let button = UIButton(type: .system)
             button.setImage(UIImage(systemName: "gear"), for: .normal)
-            button.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
+            button.addTarget(self, action: #selector(showSettings), for: .touchUpInside)
             button.frame = CGRect(x: view.frame.width - 60, y: 40, width: 44, height: 44)
             button.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.8)
             button.layer.cornerRadius = 22
@@ -288,23 +290,28 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate {
         }
     }
     
-    @objc func openSettings() {
+    // 显示设置
+    @objc func showSettings() {
         showingSettings = true
-        showSettings()
-    }
-    
-    func showSettings() {
+        
         // 使用SwiftUI展示设置视图
-        let settingsView = RunningTerminalConfig(
-            showingModal: Binding<Bool>(
+        let settingsView = TerminalSettingsView(
+            isPresented: Binding<Bool>(
                 get: { self.showingSettings },
-                set: { self.showingSettings = $0 }
+                set: { 
+                    self.showingSettings = $0
+                    if !$0 {
+                        // 如果设置为false，关闭当前呈现的控制器
+                        self.dismiss(animated: true)
+                    }
+                }
             ),
             terminal: tv as! SshTerminalView
         )
         
         let hostingController = UIHostingController(rootView: settingsView)
         hostingController.modalPresentationStyle = .formSheet
+        hostingController.presentationController?.delegate = self
         present(hostingController, animated: true)
         
         // 添加对showingSettings的观察
@@ -318,49 +325,46 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate {
         hostingController.didMove(toParent: self)
     }
     
-    @objc func handleThemeChange(_ notification: Notification) {
-        if let userInfo = notification.userInfo,
-           let themeName = userInfo["themeName"] as? String {
-            applyTheme(themeName: themeName)
-        }
-    }
-    
     // 应用主题
     func applyTheme(themeName: String) {
         if let theme = themes.first(where: { $0.name == themeName }) ?? themes.first {
-            print("应用主题: \(themeName)")
-            
             // 创建用于TerminalView的ThemeColor
             let terminalTheme = TerminalView.TerminalThemeColor(
                 ansiColors: theme.ansi,
-                foreground: theme.foreground, 
+                foreground: theme.foreground,
                 background: theme.background,
                 cursor: theme.cursor,
                 selectionColor: theme.selectionColor,
                 isLight: Double(theme.background.brightness) > 0.5
             )
             
-            // 调用 SwiftTerm 的 applyTheme 方法
+            // 应用主题到终端视图
             tv.applyTheme(theme: terminalTheme)
-            
-            print("主题已应用: \(themeName)")
-        } else {
-            print("未找到主题或主题列表为空")
         }
     }
     
-    // 平滑更改字体大小而不清屏 - 使用库中已实现的方法
-    func changeFontSizeSmoothly(_ size: CGFloat) {
-        print("开始更改字体大小到: \(size)pt")
-        // 直接调用库中的方法
-        tv.changeFontSizeSmoothly(size)
+    // 处理主题变更通知
+    @objc func handleThemeChange(_ notification: Notification) {
+        if let themeName = notification.userInfo?["themeName"] as? String {
+            applyTheme(themeName: themeName)
+        }
     }
     
-    // 平滑更改字体 - 使用库中已实现的方法
-    func changeFontSmoothly(_ fontName: String, size: CGFloat = 0) {
-        print("开始更改字体到: \(fontName), 大小: \(size)pt")
-        // 直接调用库中的方法
-        tv.changeFontSmoothly(fontName: fontName, size: size)
+    // 处理设置视图消失
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        
+        // 如果当前没有呈现的视图控制器，更新showingSettings状态
+        if presentedViewController == nil {
+            showingSettings = false
+        }
+    }
+    
+    // MARK: - UIAdaptivePresentationControllerDelegate
+    
+    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+        // 当用户通过下滑手势关闭弹窗时更新状态
+        showingSettings = false
     }
 }
 
