@@ -42,7 +42,7 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
         let frame = makeFrame(keyboardDelta: keyboardDelta)
         
         // 如果使用了容器视图且找到了它，需要确保容器尺寸正确
-        if let containerView = view.subviews.first(where: { $0 is TerminalContainerView }) as? TerminalContainerView {
+        if let _ = view.subviews.first(where: { $0 is TerminalContainerView }) as? TerminalContainerView {
             return frame
         }
         
