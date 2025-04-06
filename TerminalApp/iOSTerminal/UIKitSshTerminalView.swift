@@ -23,21 +23,20 @@ public class SshTerminalView: TerminalView, TerminalViewDelegate {
         
         super.init (frame: frame)
         terminalDelegate = self
-        do {
-            
-            authenticationChallenge = .byPassword(username: "lizheng", password: "241402")
-            shell = try? SSHShell(sshLibrary: Libssh2.self,
-                                  host: "127.0.0.1",
-                                  port: 22,
-                                  environment: [Environment(name: "LANG", variable: "en_US.UTF-8")],
-                                  terminal: "xterm-256color")
-            shell?.log.enabled = false
-            shell?.setCallbackQueue(queue: sshQueue)
-            sshQueue.async {
-                self.connect ()
-            }
-        } catch {
-            
+        
+        authenticationChallenge = .byPassword(username: "lizheng", password: "241402")
+        
+        // 尝试创建SSH shell
+        shell = try? SSHShell(sshLibrary: Libssh2.self,
+                              host: "127.0.0.1",
+                              port: 22,
+                              environment: [Environment(name: "LANG", variable: "en_US.UTF-8")],
+                              terminal: "xterm-256color")
+        
+        shell?.log.enabled = false
+        shell?.setCallbackQueue(queue: sshQueue)
+        sshQueue.async {
+            self.connect()
         }
     }
   

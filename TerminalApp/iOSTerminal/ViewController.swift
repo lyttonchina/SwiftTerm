@@ -8,10 +8,18 @@
 
 import UIKit
 import SwiftTerm
+import Combine
+import SwiftUI
 
-class ViewController: UIViewController {
+class ViewController: UIViewController, ObservableObject, TerminalViewDelegate {
     var tv: TerminalView!
     var transparent: Bool = false
+    
+    // 设置状态
+    @Published var showingSettings = false
+    
+    // 保存原始终端代理
+    private var originalTerminalDelegate: TerminalViewDelegate?
     
     var useAutoLayout: Bool {
         get { true }
@@ -77,7 +85,20 @@ class ViewController: UIViewController {
         
         // Do any additional setup after loading the view, typically from a nib.
         
-        tv = SshTerminalView(frame: makeFrame (keyboardDelta: 0))
+        // 使用标准SshTerminalView
+        tv = SshTerminalView(frame: makeFrame(keyboardDelta: 0))
+        
+        // 设置自己为终端视图的代理
+        if let sshTerminalView = tv as? SshTerminalView {
+            // 保留原有的代理
+            let originalDelegate = sshTerminalView.terminalDelegate
+            
+            // 为终端视图设置一个新的代理链
+            sshTerminalView.terminalDelegate = self
+            
+            // 存储原始代理，以便在需要时使用
+            self.originalTerminalDelegate = originalDelegate
+        }
         
         if transparent {
             let x = UIImage (contentsOfFile: "/tmp/Lucia.png")!.cgImage
@@ -93,26 +114,335 @@ class ViewController: UIViewController {
         
         view.addSubview(tv)
         setupKeyboardMonitor()
-        tv.becomeFirstResponder()
-        self.tv.feed(text: "Welcome to SwiftTerm - connecting to my localhost\r\n\n")
+        onFirstRun()
         
-        #if false
-        var text = UITextField(frame: CGRect (x: 0, y: 100, width: 300, height: 20))
-        view.addSubview(text)
-        text.backgroundColor = UIColor.white
-        text.text = "HELLO WORLD"
-        text.font = UIFont(name: "Courier", size: 30)
-        #endif
+        // 启用主题切换优化
+        TerminalView.enableThemeSwitchImprovement()
+        
+        // 应用当前主题
+        applyTheme(themeName: settings.themeName)
+        
+        // 应用保存的字体和字体大小
+        changeFontSmoothly(settings.fontName, size: settings.fontSize)
     }
     
     override func viewWillLayoutSubviews() {
         if useAutoLayout, #available(iOS 15.0, *) {
+            // 使用自动布局，不需要手动设置框架
         } else {
-            tv.frame = makeFrame (keyboardDelta: keyboardDelta)
+            // 获取最佳框架尺寸
+            let frame = makeFrame(keyboardDelta: keyboardDelta)
+            
+            // 如果终端视图正在更改字体大小，保持内容区域大小不变
+            if tv.isFontSizeChanging() {
+                // 只更新位置，保持大小不变
+                tv.frame = CGRect(
+                    x: frame.origin.x,
+                    y: frame.origin.y,
+                    width: tv.frame.width,  // 保持现有宽度
+                    height: tv.frame.height // 保持现有高度
+                )
+            } else {
+                // 正常情况下更新整个框架
+                tv.frame = frame
+            }
         }
+        
         if transparent {
             tv.backgroundColor = UIColor.clear
         }
+    }
+    
+    // MARK: - TerminalViewDelegate 协议实现
+    
+    func scrolled(source: TerminalView, position: Double) {
+        originalTerminalDelegate?.scrolled(source: source, position: position)
+    }
+    
+    func setTerminalTitle(source: TerminalView, title: String) {
+        originalTerminalDelegate?.setTerminalTitle(source: source, title: title)
+    }
+    
+    func send(source: TerminalView, data: ArraySlice<UInt8>) {
+        originalTerminalDelegate?.send(source: source, data: data)
+    }
+    
+    func clipboardCopy(source: TerminalView, content: Data) {
+        originalTerminalDelegate?.clipboardCopy(source: source, content: content)
+    }
+    
+    func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {
+        originalTerminalDelegate?.hostCurrentDirectoryUpdate(source: source, directory: directory)
+    }
+    
+    func rangeChanged(source: TerminalView, startY: Int, endY: Int) {
+        originalTerminalDelegate?.rangeChanged(source: source, startY: startY, endY: endY)
+    }
+    
+    func requestOpenLink(source: TerminalView, link: String, params: [String : String]) {
+        originalTerminalDelegate?.requestOpenLink(source: source, link: link, params: params)
+    }
+    
+    func bell(source: TerminalView) {
+        originalTerminalDelegate?.bell(source: source)
+    }
+    
+    func iTermContent(source: TerminalView, content: ArraySlice<UInt8>) {
+        originalTerminalDelegate?.iTermContent(source: source, content: content)
+    }
+    
+    // 处理终端大小变化
+    func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
+        // 如果终端视图正在更改字体大小，不进行额外处理
+        if tv.isFontSizeChanging() {
+            return
+        }
+        
+        // 获取最佳尺寸
+        let optimalSize = getOptimalTerminalSize()
+        
+        // 确保终端视图使用最佳尺寸
+        DispatchQueue.main.async {
+            if !self.useAutoLayout {
+                // 如果不使用自动布局，手动调整视图大小
+                self.tv.frame = CGRect(
+                    x: self.tv.frame.origin.x,
+                    y: self.tv.frame.origin.y,
+                    width: optimalSize.width,
+                    height: optimalSize.height
+                )
+            }
+            
+            // 强制重新布局
+            self.view.setNeedsLayout()
+            self.view.layoutIfNeeded()
+        }
+        
+        // 将大小变化传递给原始代理
+        originalTerminalDelegate?.sizeChanged(source: source, newCols: newCols, newRows: newRows)
+    }
+    
+    // 获取终端的最佳尺寸
+    func getOptimalTerminalSize() -> CGSize {
+        return calculateOptimalSize(
+            cols: tv.getTerminal().cols,
+            rows: tv.getTerminal().rows
+        )
+    }
+    
+    // 计算指定行列数的最佳尺寸
+    private func calculateOptimalSize(cols: Int, rows: Int) -> CGSize {
+        // 由于无法直接访问cellDimension，我们通过计算当前视图尺寸与行列数的关系来估算
+        if let terminal = tv as? SshTerminalView {
+            // 获取当前视图尺寸与行列数的比例
+            let currentWidth = terminal.frame.width
+            let currentHeight = terminal.frame.height
+            let currentCols = terminal.getTerminal().cols
+            let currentRows = terminal.getTerminal().rows
+            
+            // 估算单元格尺寸
+            let estimatedCellWidth = (currentCols > 0) ? (currentWidth / CGFloat(currentCols)) : 0
+            let estimatedCellHeight = (currentRows > 0) ? (currentHeight / CGFloat(currentRows)) : 0
+            
+            // 计算新尺寸
+            let width = CGFloat(cols) * estimatedCellWidth
+            let height = CGFloat(rows) * estimatedCellHeight
+            
+            return CGSize(width: width, height: height)
+        }
+        
+        return tv.frame.size
+    }
+    
+    func onFirstRun() {
+        // 设置视图
+        setupSettingsButton()
+        
+        // 配置通知观察者
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleThemeChange(_:)),
+            name: Notification.Name("ThemeChanged"),
+            object: nil
+        )
+        
+        // 应用存储的设置
+        applyTheme(themeName: settings.themeName)
+        
+        // 请求成为第一响应者
+        let _ = tv.becomeFirstResponder()
+        
+        // 初始化showingSettings状态
+        showingSettings = false
+    }
+    
+    // MARK: - 设置功能
+    
+    func setupSettingsButton() {
+        // 创建设置按钮
+        let settingsButton = UIBarButtonItem(
+            image: UIImage(systemName: "gear"),
+            style: .plain,
+            target: self,
+            action: #selector(openSettings)
+        )
+        
+        // 如果是在导航控制器中，添加到导航栏
+        if let navigationController = self.navigationController {
+            navigationController.navigationBar.topItem?.rightBarButtonItem = settingsButton
+        } else {
+            // 否则创建一个悬浮按钮
+            let button = UIButton(type: .system)
+            button.setImage(UIImage(systemName: "gear"), for: .normal)
+            button.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
+            button.frame = CGRect(x: view.frame.width - 60, y: 40, width: 44, height: 44)
+            button.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.8)
+            button.layer.cornerRadius = 22
+            view.addSubview(button)
+        }
+    }
+    
+    @objc func openSettings() {
+        showingSettings = true
+        showSettings()
+    }
+    
+    func showSettings() {
+        // 使用SwiftUI展示设置视图
+        let settingsView = RunningTerminalConfig(
+            showingModal: Binding<Bool>(
+                get: { self.showingSettings },
+                set: { self.showingSettings = $0 }
+            ),
+            terminal: tv as! SshTerminalView
+        )
+        
+        let hostingController = UIHostingController(rootView: settingsView)
+        hostingController.modalPresentationStyle = .formSheet
+        present(hostingController, animated: true)
+        
+        // 添加对showingSettings的观察
+        _ = NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            if let self = self, !self.showingSettings, let presentedVC = self.presentedViewController {
+                presentedVC.dismiss(animated: true)
+            }
+        }
+        
+        // 在控制器释放时移除观察者
+        hostingController.didMove(toParent: self)
+    }
+    
+    @objc func handleThemeChange(_ notification: Notification) {
+        if let userInfo = notification.userInfo,
+           let themeName = userInfo["themeName"] as? String {
+            applyTheme(themeName: themeName)
+        }
+    }
+    
+    // 应用主题
+    func applyTheme(themeName: String) {
+        if let theme = themes.first(where: { $0.name == themeName }) ?? themes.first {
+            print("应用主题: \(themeName)")
+            
+            // 创建用于TerminalView的ThemeColor
+            let terminalTheme = TerminalView.TerminalThemeColor(
+                ansiColors: theme.ansi,
+                foreground: theme.foreground, 
+                background: theme.background,
+                cursor: theme.cursor,
+                selectionColor: theme.selectionColor,
+                isLight: Double(theme.background.brightness) > 0.5
+            )
+            
+            // 调用 SwiftTerm 的 applyTheme 方法
+            tv.applyTheme(theme: terminalTheme)
+            
+            print("主题已应用: \(themeName)")
+        } else {
+            print("未找到主题或主题列表为空")
+        }
+    }
+    
+    // 平滑更改字体大小而不清屏
+    func changeFontSizeSmoothly(_ size: CGFloat) {
+        print("开始更改字体大小到: \(size)pt")
+        
+        // 参照macOS版本，记录原始的终端尺寸
+        let originalCols = tv.getTerminal().cols
+        let originalRows = tv.getTerminal().rows
+        
+        // 使用SwiftTerm提供的方法
+        tv.changeFontSizeSmoothly(size)
+        
+        // 在字体大小更改完成后
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self = self else { return }
+            
+            // 获取终端
+            if let terminal = self.tv as? SshTerminalView {
+                // 重新设置终端尺寸为原始尺寸，这是关键步骤！
+                // macOS版本不会改变终端尺寸，只会调整窗口大小
+                terminal.getTerminal().resize(cols: originalCols, rows: originalRows)
+                
+                // 强制终端视图更新
+                // 使用viewWillLayout根据行列数计算最佳尺寸
+                let newSize = self.calculateOptimalSize(cols: originalCols, rows: originalRows)
+                
+                // 调整视图大小而不改变位置
+                terminal.frame = CGRect(
+                    x: terminal.frame.origin.x,
+                    y: terminal.frame.origin.y,
+                    width: newSize.width,
+                    height: newSize.height
+                )
+                
+                // 强制重绘
+                terminal.setNeedsDisplay(terminal.bounds)
+            }
+        }
+        
+        print("字体大小更改完成：\(size)pt")
+    }
+    
+    // 平滑更改字体
+    func changeFontSmoothly(_ fontName: String, size: CGFloat = 0) {
+        print("开始更改字体到: \(fontName), 大小: \(size)pt")
+        
+        // 参照macOS版本，记录原始的终端尺寸
+        let originalCols = tv.getTerminal().cols
+        let originalRows = tv.getTerminal().rows
+        
+        // 使用SwiftTerm提供的方法
+        tv.changeFontSmoothly(fontName: fontName, size: size)
+        
+        // 在字体更改完成后
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self = self else { return }
+            
+            // 获取终端
+            if let terminal = self.tv as? SshTerminalView {
+                // 重新设置终端尺寸为原始尺寸，这是关键步骤！
+                // macOS版本不会改变终端尺寸，只会调整窗口大小
+                terminal.getTerminal().resize(cols: originalCols, rows: originalRows)
+                
+                // 强制终端视图更新
+                // 使用viewWillLayout根据行列数计算最佳尺寸
+                let newSize = self.calculateOptimalSize(cols: originalCols, rows: originalRows)
+                
+                // 调整视图大小而不改变位置
+                terminal.frame = CGRect(
+                    x: terminal.frame.origin.x,
+                    y: terminal.frame.origin.y,
+                    width: newSize.width,
+                    height: newSize.height
+                )
+                
+                // 强制重绘
+                terminal.setNeedsDisplay(terminal.bounds)
+            }
+        }
+        
+        print("字体更改完成：\(fontName), \(size)pt")
     }
 }
 

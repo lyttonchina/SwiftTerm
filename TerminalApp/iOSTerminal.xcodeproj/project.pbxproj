@@ -3,10 +3,13 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 52;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		365202062DA15E8E00C42CA8 /* ColorLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 365202012DA15E8E00C42CA8 /* ColorLoader.swift */; };
+		365202072DA15E8E00C42CA8 /* ConfigurableTerminaliOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 365202022DA15E8E00C42CA8 /* ConfigurableTerminaliOS.swift */; };
+		3652020A2DA15E8E00C42CA8 /* SettingsViewiOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 365202032DA15E8E00C42CA8 /* SettingsViewiOS.swift */; };
 		4936D22124512AF2005CEE27 /* UIKitSshTerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4936D22024512AF2005CEE27 /* UIKitSshTerminalView.swift */; };
 		4959FFDB2447F971001F42C0 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 4959FFDA2447F971001F42C0 /* SwiftTerm */; };
 		498667052575F1FD006BFFA0 /* SwiftSH in Frameworks */ = {isa = PBXBuildFile; productRef = 498667042575F1FD006BFFA0 /* SwiftSH */; };
@@ -31,6 +34,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		365202012DA15E8E00C42CA8 /* ColorLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorLoader.swift; sourceTree = "<group>"; };
+		365202022DA15E8E00C42CA8 /* ConfigurableTerminaliOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurableTerminaliOS.swift; sourceTree = "<group>"; };
+		365202032DA15E8E00C42CA8 /* SettingsViewiOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewiOS.swift; sourceTree = "<group>"; };
+		365202042DA15E8E00C42CA8 /* UIKitSshTerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIKitSshTerminalView.swift; sourceTree = "<group>"; };
+		365202052DA15E8E00C42CA8 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
 		4936D22024512AF2005CEE27 /* UIKitSshTerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIKitSshTerminalView.swift; sourceTree = "<group>"; };
 		49BD1A5A224207B5005A2252 /* iOSTerminal.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iOSTerminal.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		49BD1A5D224207B5005A2252 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -92,6 +100,11 @@
 				49BD1A66224207B7005A2252 /* LaunchScreen.storyboard */,
 				49BD1A69224207B7005A2252 /* Info.plist */,
 				4936D22024512AF2005CEE27 /* UIKitSshTerminalView.swift */,
+				365202012DA15E8E00C42CA8 /* ColorLoader.swift */,
+				365202022DA15E8E00C42CA8 /* ConfigurableTerminaliOS.swift */,
+				365202032DA15E8E00C42CA8 /* SettingsViewiOS.swift */,
+				365202042DA15E8E00C42CA8 /* UIKitSshTerminalView.swift */,
+				365202052DA15E8E00C42CA8 /* ViewController.swift */,
 			);
 			path = iOSTerminal;
 			sourceTree = "<group>";
@@ -127,8 +140,9 @@
 		49BD1A52224207B4005A2252 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
+				BuildIndependentTargetsInParallel = YES;
 				LastSwiftUpdateCheck = 1130;
-				LastUpgradeCheck = 1010;
+				LastUpgradeCheck = 1630;
 				ORGANIZATIONNAME = "Miguel de Icaza";
 				TargetAttributes = {
 					49BD1A59224207B5005A2252 = {
@@ -180,6 +194,9 @@
 				4936D22124512AF2005CEE27 /* UIKitSshTerminalView.swift in Sources */,
 				49BD1A60224207B5005A2252 /* ViewController.swift in Sources */,
 				49BD1A5E224207B5005A2252 /* AppDelegate.swift in Sources */,
+				365202062DA15E8E00C42CA8 /* ColorLoader.swift in Sources */,
+				365202072DA15E8E00C42CA8 /* ConfigurableTerminaliOS.swift in Sources */,
+				3652020A2DA15E8E00C42CA8 /* SettingsViewiOS.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -231,6 +248,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -240,8 +258,10 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = PJQC57N853;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -293,6 +313,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -302,8 +323,10 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = PJQC57N853;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -329,13 +352,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = PJQC57N853;
 				INFOPLIST_FILE = "$(PRODUCT_NAME)/Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 11.0;
 				PRODUCT_BUNDLE_IDENTIFIER = org.tirania.SwiftTerm.iosSampleApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -348,13 +371,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = PJQC57N853;
 				INFOPLIST_FILE = "$(PRODUCT_NAME)/Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 11.0;
 				PRODUCT_BUNDLE_IDENTIFIER = org.tirania.SwiftTerm.iosSampleApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -385,6 +408,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		7524779725589900001B12E7 /* XCLocalSwiftPackageReference ".." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ..;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		498667032575F1FD006BFFA0 /* XCRemoteSwiftPackageReference "SwiftSH" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -393,10 +423,6 @@
 				branch = master;
 				kind = branch;
 			};
-		};
-		7524779725589900001B12E7 /* XCLocalSwiftPackageReference ".." */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ..;
 		};
 /* End XCRemoteSwiftPackageReference section */
 
