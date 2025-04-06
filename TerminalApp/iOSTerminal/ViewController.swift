@@ -36,15 +36,38 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
         }
     }
     
+    // 为容器视图计算正确的框架，考虑到它必须比终端视图更大以容纳内边距
+    func makeContainerFrame(keyboardDelta: CGFloat) -> CGRect {
+        let frame = makeFrame(keyboardDelta: keyboardDelta)
+        
+        // 如果使用了容器视图且找到了它，需要确保容器尺寸正确
+        if let containerView = view.subviews.first(where: { $0 is TerminalContainerView }) as? TerminalContainerView {
+            return frame
+        }
+        
+        return frame
+    }
+    
     func setupKeyboardMonitor ()
     {
         if #available(iOS 15.0, *), useAutoLayout {
-            tv.translatesAutoresizingMaskIntoConstraints = false
-            tv.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor).isActive = true
-            tv.leftAnchor.constraint(equalTo: view.leftAnchor).isActive = true
-            tv.rightAnchor.constraint(equalTo: view.rightAnchor).isActive = true
-            
-            tv.keyboardLayoutGuide.topAnchor.constraint(equalTo: tv.bottomAnchor).isActive = true
+            // 查找容器视图
+            if let containerView = view.subviews.first(where: { $0 is TerminalContainerView }) {
+                containerView.translatesAutoresizingMaskIntoConstraints = false
+                containerView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor).isActive = true
+                containerView.leftAnchor.constraint(equalTo: view.leftAnchor).isActive = true
+                containerView.rightAnchor.constraint(equalTo: view.rightAnchor).isActive = true
+                
+                containerView.keyboardLayoutGuide.topAnchor.constraint(equalTo: containerView.bottomAnchor).isActive = true
+            } else {
+                // 如果没有找到容器视图，则直接配置终端视图（兼容旧代码）
+                tv.translatesAutoresizingMaskIntoConstraints = false
+                tv.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor).isActive = true
+                tv.leftAnchor.constraint(equalTo: view.leftAnchor).isActive = true
+                tv.rightAnchor.constraint(equalTo: view.rightAnchor).isActive = true
+                
+                tv.keyboardLayoutGuide.topAnchor.constraint(equalTo: tv.bottomAnchor).isActive = true
+            }
         } else {
             NotificationCenter.default.addObserver(
                 self,
@@ -66,18 +89,37 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
         let keyboardScreenEndFrame = keyboardValue.cgRectValue
         let keyboardViewEndFrame = view.convert(keyboardScreenEndFrame, from: view.window)
         keyboardDelta = keyboardViewEndFrame.height
-        tv.frame = makeFrame(keyboardDelta: keyboardViewEndFrame.height)
-    }
-    
-    
-    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
-        tv.frame = CGRect (origin: tv.frame.origin, size: size)
+        
+        // 查找容器视图并调整其位置
+        if let containerView = view.subviews.first(where: { $0 is TerminalContainerView }) {
+            containerView.frame = makeFrame(keyboardDelta: keyboardViewEndFrame.height)
+        } else {
+            // 如果没有找到容器视图，则直接调整终端视图（兼容旧代码）
+            tv.frame = makeFrame(keyboardDelta: keyboardViewEndFrame.height)
+        }
     }
     
     @objc private func keyboardWillHide(_ notification: NSNotification) {
         //let key = UIResponder.keyboardFrameBeginUserInfoKey
         keyboardDelta = 0
-        tv.frame = makeFrame(keyboardDelta: 0)
+        
+        // 查找容器视图并调整其位置
+        if let containerView = view.subviews.first(where: { $0 is TerminalContainerView }) {
+            containerView.frame = makeFrame(keyboardDelta: 0)
+        } else {
+            // 如果没有找到容器视图，则直接调整终端视图（兼容旧代码）
+            tv.frame = makeFrame(keyboardDelta: 0)
+        }
+    }
+    
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        // 查找容器视图并调整其尺寸
+        if let containerView = view.subviews.first(where: { $0 is TerminalContainerView }) {
+            containerView.frame = CGRect(origin: containerView.frame.origin, size: size)
+        } else {
+            // 如果没有找到容器视图，则直接调整终端视图（兼容旧代码）
+            tv.frame = CGRect(origin: tv.frame.origin, size: size)
+        }
     }
     
     override func viewDidLoad() {
@@ -112,7 +154,13 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
             view.layer.addSublayer(layer)
         }
         
-        view.addSubview(tv)
+        // 创建一个包含简单边距的容器，包装终端视图
+        let containerInsets = NSDirectionalEdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
+        let containerView = tv.withContainer(insets: containerInsets)
+        
+        // 将容器视图添加到视图层次结构中
+        view.addSubview(containerView)
+        
         setupKeyboardMonitor()
         
         // 设置视图
@@ -159,8 +207,18 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
         if useAutoLayout, #available(iOS 15.0, *) {
             // 使用自动布局，不需要手动设置框架
         } else {
-            // 正常情况下更新整个框架
-            tv.frame = makeFrame(keyboardDelta: keyboardDelta)
+            // 查找容器视图并调整其位置
+            if let containerView = view.subviews.first(where: { $0 is TerminalContainerView }) {
+                containerView.frame = makeFrame(keyboardDelta: keyboardDelta)
+                
+                // 强制终端视图重新绘制
+                DispatchQueue.main.async {
+                    self.tv.setNeedsDisplay(self.tv.bounds)
+                }
+            } else {
+                // 如果没有找到容器视图，则直接调整终端视图（兼容旧代码）
+                tv.frame = makeFrame(keyboardDelta: keyboardDelta)
+            }
         }
         
         if transparent {
@@ -210,6 +268,13 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
     func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
         // 如果终端视图正在更改字体大小，不进行额外处理
         if tv.isFontSizeChanging() {
+            // 标记稍后需要进行布局刷新
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                self.updateTerminalSize()
+            }
+            
+            // 将大小变化传递给原始代理
+            originalTerminalDelegate?.sizeChanged(source: source, newCols: newCols, newRows: newRows)
             return
         }
         
@@ -231,6 +296,9 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
             // 强制重新布局
             self.view.setNeedsLayout()
             self.view.layoutIfNeeded()
+            
+            // 手动刷新容器和终端视图
+            self.updateTerminalSize()
         }
         
         // 将大小变化传递给原始代理
@@ -365,6 +433,29 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
     func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
         // 当用户通过下滑手势关闭弹窗时更新状态
         showingSettings = false
+    }
+    
+    // 手动更新终端尺寸
+    func updateTerminalSize() {
+        // 强制终端视图刷新布局
+        DispatchQueue.main.async {
+            // 如果终端视图在字体变化中，先等一会再更新
+            if self.tv.isFontSizeChanging() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.updateTerminalSize()
+                }
+                return
+            }
+            
+            // 强制容器视图刷新
+            if let containerView = self.view.subviews.first(where: { $0 is TerminalContainerView }) {
+                containerView.setNeedsLayout()
+                containerView.layoutIfNeeded()
+            }
+            
+            // 强制终端视图重新绘制
+            self.tv.setNeedsDisplay(self.tv.bounds)
+        }
     }
 }
 
