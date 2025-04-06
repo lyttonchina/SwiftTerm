@@ -128,9 +128,12 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate {
     
     override func viewWillLayoutSubviews() {
         if useAutoLayout, #available(iOS 15.0, *) {
+            // 使用自动布局，不需要手动设置框架
         } else {
-            tv.frame = makeFrame (keyboardDelta: keyboardDelta)
+            // 正常情况下更新整个框架
+            tv.frame = makeFrame(keyboardDelta: keyboardDelta)
         }
+        
         if transparent {
             tv.backgroundColor = UIColor.clear
         }
@@ -346,86 +349,18 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate {
         }
     }
     
-    // 平滑更改字体大小而不清屏
+    // 平滑更改字体大小而不清屏 - 使用库中已实现的方法
     func changeFontSizeSmoothly(_ size: CGFloat) {
         print("开始更改字体大小到: \(size)pt")
-        
-        // 参照macOS版本，记录原始的终端尺寸
-        let originalCols = tv.getTerminal().cols
-        let originalRows = tv.getTerminal().rows
-        
-        // 使用SwiftTerm提供的方法
+        // 直接调用库中的方法
         tv.changeFontSizeSmoothly(size)
-        
-        // 在字体大小更改完成后
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            guard let self = self else { return }
-            
-            // 获取终端
-            if let terminal = self.tv as? SshTerminalView {
-                // 重新设置终端尺寸为原始尺寸，这是关键步骤！
-                // macOS版本不会改变终端尺寸，只会调整窗口大小
-                terminal.getTerminal().resize(cols: originalCols, rows: originalRows)
-                
-                // 强制终端视图更新
-                // 使用viewWillLayout根据行列数计算最佳尺寸
-                let newSize = self.calculateOptimalSize(cols: originalCols, rows: originalRows)
-                
-                // 调整视图大小而不改变位置
-                terminal.frame = CGRect(
-                    x: terminal.frame.origin.x,
-                    y: terminal.frame.origin.y,
-                    width: newSize.width,
-                    height: newSize.height
-                )
-                
-                // 强制重绘
-                terminal.setNeedsDisplay(terminal.bounds)
-            }
-        }
-        
-        print("字体大小更改完成：\(size)pt")
     }
     
-    // 平滑更改字体
+    // 平滑更改字体 - 使用库中已实现的方法
     func changeFontSmoothly(_ fontName: String, size: CGFloat = 0) {
         print("开始更改字体到: \(fontName), 大小: \(size)pt")
-        
-        // 参照macOS版本，记录原始的终端尺寸
-        let originalCols = tv.getTerminal().cols
-        let originalRows = tv.getTerminal().rows
-        
-        // 使用SwiftTerm提供的方法
+        // 直接调用库中的方法
         tv.changeFontSmoothly(fontName: fontName, size: size)
-        
-        // 在字体更改完成后
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            guard let self = self else { return }
-            
-            // 获取终端
-            if let terminal = self.tv as? SshTerminalView {
-                // 重新设置终端尺寸为原始尺寸，这是关键步骤！
-                // macOS版本不会改变终端尺寸，只会调整窗口大小
-                terminal.getTerminal().resize(cols: originalCols, rows: originalRows)
-                
-                // 强制终端视图更新
-                // 使用viewWillLayout根据行列数计算最佳尺寸
-                let newSize = self.calculateOptimalSize(cols: originalCols, rows: originalRows)
-                
-                // 调整视图大小而不改变位置
-                terminal.frame = CGRect(
-                    x: terminal.frame.origin.x,
-                    y: terminal.frame.origin.y,
-                    width: newSize.width,
-                    height: newSize.height
-                )
-                
-                // 强制重绘
-                terminal.setNeedsDisplay(terminal.bounds)
-            }
-        }
-        
-        print("字体更改完成：\(fontName), \(size)pt")
     }
 }
 

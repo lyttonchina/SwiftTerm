@@ -90,6 +90,10 @@ extension TerminalView {
     
     // 私有辅助方法，处理字体变化的核心逻辑
     private func performFontChange(newFont: CTFont, clearScreen: Bool = false) {
+        // 记录原始终端尺寸，便于稍后恢复（尤其在iOS上）
+        let originalCols = terminal.cols
+        let originalRows = terminal.rows
+        
         // 记录当前光标位置，便于稍后恢复
         let originalCursorX = terminal.buffer.x
         let originalCursorY = terminal.buffer.y
@@ -110,9 +114,10 @@ extension TerminalView {
         let newCols = Int(frame.width / cellDimension.width)
         let newRows = Int(frame.height / cellDimension.height)
         
-        // 调整终端内容，但不触发窗口大小变化
+        #if os(macOS)
+        // macOS: 调整终端内容，允许尺寸变化，因为窗口会自动适应
         if newCols != terminal.cols || newRows != terminal.rows {
-            // 保存当前内容
+            // 调整终端尺寸
             terminal.resize(cols: newCols, rows: newRows)
             
             // 尝试恢复光标位置
@@ -122,19 +127,65 @@ extension TerminalView {
             }
         }
         
-        // 手动触发sizeChanged回调，但标记为字体大小变化
+        // 手动触发sizeChanged回调
         if let terminalDelegate = self.terminalDelegate {
             terminalDelegate.sizeChanged(source: self, newCols: terminal.cols, newRows: terminal.rows)
         }
         
         // 强制重绘
-        #if os(macOS)
         self.needsDisplay = true
         
         // 结束动画组
         NSAnimationContext.endGrouping()
         #elseif os(iOS) || os(visionOS)
+        // iOS/visionOS: 暂时调整尺寸，但稍后恢复原始尺寸以防止溢出
+        // 临时调整终端尺寸以适应新字体
+        if newCols != terminal.cols || newRows != terminal.rows {
+            terminal.resize(cols: newCols, rows: newRows)
+            
+            // 尝试恢复光标位置
+            if originalCursorX < newCols && originalCursorY < newRows {
+                terminal.buffer.x = originalCursorX
+                terminal.buffer.y = originalCursorY
+            }
+        }
+        
+        // 立即重绘以显示新字体
         self.setNeedsDisplay(self.bounds)
+        
+        // 手动触发sizeChanged回调，通知变化
+        if let terminalDelegate = self.terminalDelegate {
+            terminalDelegate.sizeChanged(source: self, newCols: terminal.cols, newRows: terminal.rows)
+        }
+        
+        // 延迟恢复原始终端尺寸，防止iOS上的溢出问题
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard let self = self else { return }
+            
+            // 恢复到原始终端尺寸
+            self.terminal.resize(cols: originalCols, rows: originalRows)
+            
+            // 再次尝试恢复光标位置
+            if originalCursorX < originalCols && originalCursorY < originalRows {
+                self.terminal.buffer.x = originalCursorX
+                self.terminal.buffer.y = originalCursorY
+            }
+            
+            // 保持当前视图框架大小不变，避免干扰布局系统
+            // 这对应于viewWillLayoutSubviews中的简化版本逻辑
+            let currentFrame = self.frame
+            
+            // 再次触发回调，通知已恢复原始尺寸
+            if let terminalDelegate = self.terminalDelegate {
+                terminalDelegate.sizeChanged(source: self, newCols: self.terminal.cols, newRows: self.terminal.rows)
+            }
+            
+            // 强制重绘，确保显示正确
+            self.setNeedsDisplay(self.bounds)
+            
+            // 最后重置标志，表示字体大小变更完成
+            self.setFontSizeChanging(false)
+        }
         #endif
     }
     
