@@ -9,7 +9,7 @@ import AppKit
 /// 终端配置器，提供统一的接口来配置和管理 TerminalView
 public class TerminalConfigurator {
     public weak var terminalView: TerminalView?
-    public let containerView: TerminalContainerView
+    internal let containerView: TerminalContainerView
     
     public init(terminalView: TerminalView) {
         self.terminalView = terminalView
@@ -28,6 +28,34 @@ public class TerminalConfigurator {
         
         // 启用主题切换优化
         TerminalView.enableThemeSwitchImprovement()
+    }
+    
+    // 新增方法 - 同步容器背景色
+    public func syncContainerBackgroundColor() {
+        containerView.syncBackgroundColor()
+    }
+    
+    // 新增方法 - 将终端添加到视图
+    public func addToView(_ view: TTView) {
+        view.addSubview(containerView)
+    }
+    
+    // 新增方法 - 设置容器框架和自动调整掩码
+    public func setFrame(_ frame: CGRect, autoresizingMask: TTView.AutoresizingMask? = nil) {
+        containerView.frame = frame
+        if let mask = autoresizingMask {
+            containerView.autoresizingMask = mask
+        }
+    }
+    
+    // 新增方法 - 刷新显示
+    public func refreshDisplay() {
+        containerView.needsDisplay = true
+    }
+    
+    // 新增方法 - 需要布局
+    public func needsLayout() {
+        containerView.needsLayout = true
     }
     
     // 应用主题

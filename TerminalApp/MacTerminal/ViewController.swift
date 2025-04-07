@@ -111,28 +111,14 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         // 设置设置菜单
         setupSettingsMenu()
         
-        // 确保能访问容器视图
-        let containerView = configurator.containerView
+        // 将配置好的终端添加到视图中
+        configurator.addToView(view)
         
-        // 设置容器视图的背景色
-        if !transparent {
-            print("初始化: 即将同步容器背景色")
-            containerView.syncBackgroundColor()
-            print("初始化: 容器背景色同步完成")
-        } else {
-            print("初始化: 设置透明背景")
-            configurator.enableTransparentBackground(true)
-        }
-        
-        // 添加容器视图而不是直接添加终端视图
-        view.addSubview(containerView)
-        
-        // 确保容器视图填充整个视图区域
-        containerView.frame = view.bounds
-        containerView.autoresizingMask = [.width, .height]
+        // 确保容器视图填充整个视图区域并设置自动调整大小
+        configurator.setFrame(view.bounds, autoresizingMask: [.width, .height])
         
         // 强制刷新
-        containerView.needsDisplay = true
+        configurator.refreshDisplay()
         
         // 启动shell
         let shell = getShell()
@@ -184,7 +170,7 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
             print("当前configurator: \(String(describing: configurator))")
             
             // 应用主题
-            if let theme = TerminalThemeManager.shared.getTheme(named: themeName) {
+            if TerminalThemeManager.shared.getTheme(named: themeName) != nil {
                 print("找到主题: \(themeName), 准备应用")
                 applyTheme(themeName: themeName)
             } else {
@@ -208,9 +194,9 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         super.viewDidLayout()
         changingSize = true
         // 调整容器视图而不是直接调整终端视图
-        configurator.containerView.frame = view.frame
+        configurator.setFrame(view.frame)
         changingSize = false
-        configurator.containerView.needsLayout = true
+        configurator.needsLayout()
     }
 
 
