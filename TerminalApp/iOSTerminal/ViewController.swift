@@ -264,80 +264,81 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
         originalTerminalDelegate?.iTermContent(source: source, content: content)
     }
     
-    // 处理终端大小变化
+    // 处理终端大小变化 - 简化，类似macOS版本
     func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
-        print("TerminalViewDelegate.sizeChanged: \(newCols) x \(newRows)")
-        
-        // 如果终端视图正在更改字体大小，不进行额外处理
-        if tv.isFontSizeChanging() {
-            print("字体大小正在变更中，延迟处理终端尺寸变化")
-            
-            // 将大小变化传递给原始代理
-            originalTerminalDelegate?.sizeChanged(source: source, newCols: newCols, newRows: newRows)
-            
-            // 标记稍后需要进行布局刷新（稍微延迟处理，确保完成字体计算）
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                self.updateTerminalSize()
-                
-                // 完成后，再次刷新以确保内容正确显示
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    print("字体大小变更后，再次刷新终端显示")
-                    
-                    // 在容器视图或终端视图上强制刷新
-                    if let containerView = self.view.subviews.first(where: { $0 is TerminalContainerView }) {
-                        containerView.setNeedsLayout()
-                        containerView.layoutIfNeeded()
-                    }
-                    
-                    // 刷新视图，让终端控制自己的显示
-                    self.tv.setNeedsDisplay(self.tv.bounds)
-                    
-                    // 确保配置器重新同步
-                    self.configurator.refreshDisplay()
-                    
-                    print("完成终端尺寸调整，新尺寸: \(self.tv.getTerminal().cols) x \(self.tv.getTerminal().rows)")
-                }
-            }
-            return
-        }
-        
-        print("常规终端尺寸变化处理")
-        
-        // 计算可用视图尺寸
-        let viewWidth = self.view.bounds.width - self.view.safeAreaInsets.left - self.view.safeAreaInsets.right
-        let viewHeight = self.view.bounds.height - self.view.safeAreaInsets.top - self.keyboardDelta
-        
-        // 确保终端视图使用合适尺寸
-        DispatchQueue.main.async {
-            if !self.useAutoLayout {
-                // 如果不使用自动布局，调整容器或终端视图
-                if let containerView = self.view.subviews.first(where: { $0 is TerminalContainerView }) {
-                    containerView.frame = CGRect(
-                        x: self.view.safeAreaInsets.left,
-                        y: self.view.safeAreaInsets.top,
-                        width: viewWidth,
-                        height: viewHeight
-                    )
-                } else {
-                    self.tv.frame = CGRect(
-                        x: self.view.safeAreaInsets.left,
-                        y: self.view.safeAreaInsets.top,
-                        width: viewWidth,
-                        height: viewHeight
-                    )
-                }
-            }
-            
-            // 强制重新布局
-            self.view.setNeedsLayout()
-            self.view.layoutIfNeeded()
-            
-            // 手动刷新容器和终端视图
-            self.updateTerminalSize()
-        }
-        
+        print("ViewController: 收到终端大小变化通知: \(newCols)x\(newRows)")
+
         // 将大小变化传递给原始代理
         originalTerminalDelegate?.sizeChanged(source: source, newCols: newCols, newRows: newRows)
+        
+        // 如果终端视图正在更改字体大小，不调整终端尺寸
+        if tv.isFontSizeChanging() {
+            print("ViewController: 终端视图正在更改字体大小，不调整终端尺寸")
+            return
+        }
+
+        // 避免在已经调整大小时再次调整，防止递归调用
+        if isChangingSize {
+            print("ViewController: 正在进行大小调整，忽略本次调用")
+            return
+        }
+
+        isChangingSize = true
+        print("ViewController: 开始调整终端尺寸")
+        
+        // 计算内容区的理想大小
+        let terminal = tv.getTerminal()
+        
+        // 注意：不能直接访问cellDimension（internal保护级别）
+        // 使用公开API获取估算的单元格尺寸
+        let optimalSize = tv.getOptimalSize()
+        let currentCols = terminal.cols
+        let currentRows = terminal.rows
+        
+        // 估算单元格尺寸
+        let cellWidth = currentCols > 0 ? optimalSize.width / CGFloat(currentCols) : 0
+        let cellHeight = currentRows > 0 ? optimalSize.height / CGFloat(currentRows) : 0
+        
+        // 计算内容区所需的理想尺寸
+        let contentWidth = CGFloat(newCols) * cellWidth
+        let contentHeight = CGFloat(newRows) * cellHeight
+        
+        print("ViewController: 计算内容区域 - 估算单元格尺寸: \(cellWidth)x\(cellHeight), 内容尺寸: \(contentWidth)x\(contentHeight)")
+        
+        // 根据内容区计算调整框架
+        if !useAutoLayout {
+            // 获取基础框架
+            let baseFrame = makeFrame(keyboardDelta: keyboardDelta)
+            
+            // 确保框架至少能容纳内容区
+            let adjustedFrame = CGRect(
+                x: baseFrame.origin.x,
+                y: baseFrame.origin.y,
+                width: max(baseFrame.width, contentWidth),
+                height: max(baseFrame.height, contentHeight)
+            )
+            
+            // 应用调整后的框架
+            configurator.setFrame(adjustedFrame)
+            print("ViewController: 调整框架 - 从 \(baseFrame.size) 到 \(adjustedFrame.size)")
+        }
+        
+        // 刷新显示以确保所有内容可见
+        configurator.refreshDisplay()
+        configurator.needsLayout()
+        
+        // 再次确认终端尺寸正确
+        let updatedCols = terminal.cols
+        let updatedRows = terminal.rows
+        if updatedCols != newCols || updatedRows != newRows {
+            print("ViewController: 警告 - 终端尺寸未正确更新: 期望 \(newCols)x\(newRows), 实际 \(updatedCols)x\(updatedRows)")
+            // 如有必要，可以强制调整终端尺寸
+            terminal.resize(cols: newCols, rows: newRows)
+        }
+        
+        // 重置标志
+        isChangingSize = false
+        print("ViewController: 终端尺寸调整完成 - 最终尺寸: \(terminal.cols)x\(terminal.rows)")
     }
     
     // 获取终端的最佳尺寸
@@ -492,131 +493,37 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
         showingSettings = false
     }
     
-    // 手动更新终端尺寸
-    func updateTerminalSize() {
-        // 强制终端视图刷新布局
-        DispatchQueue.main.async {
-            // 如果终端视图在字体变化中，先等一会再更新
-            if self.tv.isFontSizeChanging() {
-                print("字体大小正在变更中，延迟更新布局")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    self.updateTerminalSize()
-                }
-                return
-            }
+    // 应用字体 - 使用更接近macOS中resetFont机制的方法
+    func applyFont(name: String, size: CGFloat) {
+        // 保存设置
+        if name != "" {
+            settings.fontName = name
+        }
+        settings.fontSize = size
+        
+        print("应用字体 - 名称: \(name.isEmpty ? settings.fontName : name), 大小: \(size)")
+        
+        // 方法1：尝试直接使用TerminalView内部的changeFontSmoothly方法
+        tv.changeFontSmoothly(fontName: name, size: size)
+        
+        // 然后在主队列延迟执行以确保字体变更完成
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            // 确保终端视图框架是正确的
+            let frame = self.makeFrame(keyboardDelta: self.keyboardDelta)
+            self.configurator.setFrame(frame)
             
-            print("开始更新终端尺寸")
-            
-            // 先重新计算行列数
-            let terminalCols = self.tv.getTerminal().cols
-            let terminalRows = self.tv.getTerminal().rows
-            
-            // 获取当前视图尺寸
-            let viewWidth = self.view.bounds.width - self.view.safeAreaInsets.left - self.view.safeAreaInsets.right
-            let viewHeight = self.view.bounds.height - self.view.safeAreaInsets.top - self.keyboardDelta
-            
-            print("当前可用视图尺寸: \(viewWidth) x \(viewHeight)")
-            print("当前终端行列数: \(terminalCols) x \(terminalRows)")
-            
-            // 获取最佳尺寸 - 基于当前字体的单元格大小
-            let optimalSize = self.getOptimalTerminalSize()
-            print("计算的最佳终端尺寸: \(optimalSize.width) x \(optimalSize.height)")
-            
-            // 显式使用TerminalConfigurator调整终端视图
-            if let containerView = self.view.subviews.first(where: { $0 is TerminalContainerView }) as? TerminalContainerView {
-                print("使用容器视图调整尺寸")
-                
-                // 如果不使用自动布局，手动调整容器视图大小
-                if !self.useAutoLayout {
-                    containerView.frame = CGRect(
-                        x: self.view.safeAreaInsets.left,
-                        y: self.view.safeAreaInsets.top,
-                        width: viewWidth,
-                        height: viewHeight
-                    )
-                }
-                
-                // 刷新容器视图
-                containerView.setNeedsLayout()
-                containerView.layoutIfNeeded()
-            } else if !self.useAutoLayout {
-                // 如果没有容器视图，直接调整终端视图大小
-                print("直接调整终端视图尺寸")
-                self.tv.frame = CGRect(
-                    x: self.view.safeAreaInsets.left,
-                    y: self.view.safeAreaInsets.top,
-                    width: viewWidth,
-                    height: viewHeight
-                )
-            }
-            
-            // 使用配置器刷新显示
-            print("使用配置器刷新显示")
+            // 这步很关键：触发一次重新布局并刷新
+            // 这会确保终端在新字体下正确显示
             self.configurator.refreshDisplay()
+            self.configurator.needsLayout()
             
-            // 确保显示准确，稍后强制重绘
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                // 请求首次响应者，确保正确处理输入
-                _ = self.tv.becomeFirstResponder()
-                
-                // 通过scrollPosition触发内容重绘
-                if self.tv.canScroll {
-                    let position = self.tv.scrollPosition
-                    self.scrolled(source: self.tv, position: position)
-                }
-                
-                // 强制终端视图重新绘制
-                print("强制终端视图重新绘制")
-                self.tv.setNeedsDisplay(self.tv.bounds)
-                
-                // 再次刷新，确保内容完全更新
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    self.configurator.refreshDisplay()
-                    self.tv.setNeedsDisplay(self.tv.bounds)
-                    
-                    print("终端尺寸更新完成")
-                    print("更新后终端行列数: \(self.tv.getTerminal().cols) x \(self.tv.getTerminal().rows)")
-                    print("更新后终端视图尺寸: \(self.tv.frame.width) x \(self.tv.frame.height)")
-                }
-            }
+            // 打印确认信息
+            print("字体变更完成 - 最终尺寸: \(self.tv.getTerminal().cols)x\(self.tv.getTerminal().rows)")
         }
     }
     
-    // 处理字体变更
-    func applyFont(name: String, size: CGFloat) {
-        print("应用字体变更: \(name), 大小: \(size)")
-        
-        // 在字体变更前保存当前终端状态信息
-        let isAltBuffer = !self.tv.canScroll
-        let scrollPosition = self.tv.scrollPosition
-        
-        // 设置字体
-        configurator.applyFont(name: name, size: size)
-        
-        // 等待字体变更完成后调整内容
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            // 强制刷新容器
-            self.configurator.refreshDisplay()
-            
-            // 如果不是替代缓冲区且可以滚动，尝试恢复滚动位置
-            if !isAltBuffer && self.tv.canScroll {
-                print("恢复滚动位置: \(scrollPosition)")
-                self.scrolled(source: self.tv, position: scrollPosition)
-            }
-            
-            // 额外进行一次完整的布局更新
-            self.updateTerminalSize()
-            
-            // 再次更新显示
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                if let containerView = self.view.subviews.first(where: { $0 is TerminalContainerView }) {
-                    containerView.setNeedsLayout()
-                }
-                self.tv.setNeedsDisplay(self.tv.bounds)
-                
-                print("字体变更完成，新终端尺寸: \(self.tv.getTerminal().cols) x \(self.tv.getTerminal().rows)")
-            }
-        }
-    }
+    // MARK: - TerminalViewDelegate Methods for SshTerminalView
+    
+    // 添加标志防止递归调整
+    private var isChangingSize = false
 }
-
