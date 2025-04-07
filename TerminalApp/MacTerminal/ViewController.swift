@@ -97,28 +97,15 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         // 创建终端视图
         terminal = LocalProcessTerminalView(frame: view.frame)
         ViewController.lastTerminal = terminal
-        
-        // 设置多代理支持
-        delegateChain = terminal.useMultipleDelegates()
-        delegateChain.add(delegate: self)
-        
-        // 设置配置器
-        configurator = terminal.configure()
+                
+        // 设置配置器并一步添加到视图
+        configurator = terminal.configureAndAddToView(view, frame: view.bounds)
         
         // 设置进程代理
         terminal.processDelegate = self
         
         // 设置设置菜单
         setupSettingsMenu()
-        
-        // 将配置好的终端添加到视图中
-        configurator.addToView(view)
-        
-        // 确保容器视图填充整个视图区域并设置自动调整大小
-        configurator.setFrame(view.bounds, autoresizingMask: [.width, .height])
-        
-        // 强制刷新
-        configurator.refreshDisplay()
         
         // 启动shell
         let shell = getShell()

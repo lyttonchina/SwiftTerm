@@ -40,6 +40,40 @@ public class TerminalConfigurator {
         view.addSubview(containerView)
     }
     
+    /// 添加到视图并一步配置布局和刷新
+    /// - Parameters:
+    ///   - view: 父视图
+    ///   - frame: 显示框架，如果为nil则使用父视图的bounds
+    ///   - autoresizingMask: 自动调整掩码，默认为宽度和高度自适应
+    /// - Returns: 配置器自身，用于链式调用
+    @discardableResult
+    public func addToViewAndConfigure(_ view: TTView, frame: CGRect? = nil, autoresizingMask: TTView.AutoresizingMask = [.width, .height]) -> Self {
+        // 添加到父视图
+        view.addSubview(containerView)
+        
+        // 设置框架和自动调整
+        containerView.frame = frame ?? view.bounds
+        containerView.autoresizingMask = autoresizingMask
+        
+        // 刷新显示
+        containerView.needsDisplay = true
+        
+        // 按照透明设置同步背景色
+        #if os(iOS) || os(visionOS)
+        let isTransparent = terminalView?.backgroundColor == UIColor.clear
+        #elseif os(macOS)
+        let isTransparent = terminalView?.nativeBackgroundColor == NSColor.clear
+        #endif
+        
+        if isTransparent {
+            enableTransparentBackground(true)
+        } else {
+            syncContainerBackgroundColor()
+        }
+        
+        return self
+    }
+    
     // 新增方法 - 设置容器框架和自动调整掩码
     public func setFrame(_ frame: CGRect, autoresizingMask: TTView.AutoresizingMask? = nil) {
         containerView.frame = frame

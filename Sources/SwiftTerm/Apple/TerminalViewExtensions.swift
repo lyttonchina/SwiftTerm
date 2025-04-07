@@ -24,25 +24,22 @@ extension TerminalView {
             height: CGFloat(rows) * cellDimension.height
         )
     }
-    
-    /// 使用代理链来管理多个代理
-    public func useMultipleDelegates() -> TerminalDelegateChain {
-        let chain = TerminalDelegateChain()
         
-        // 保存当前代理
-        if let currentDelegate = terminalDelegate {
-            chain.add(delegate: currentDelegate)
-        }
-        
-        // 设置链为新代理
-        terminalDelegate = chain
-        
-        return chain
-    }
-    
     /// 创建并配置终端
     public func configure() -> TerminalConfigurator {
         return TerminalConfigurator(terminalView: self)
+    }
+    
+    /// 创建配置器并一步添加到视图中
+    /// - Parameters:
+    ///   - view: 要添加到的父视图
+    ///   - frame: 显示框架，如果为nil则使用父视图的bounds
+    ///   - autoresizingMask: 自动调整掩码，默认为宽度和高度自适应
+    /// - Returns: 配置好的终端配置器
+    public func configureAndAddToView(_ view: TTView, frame: CGRect? = nil, autoresizingMask: TTView.AutoresizingMask = [.width, .height]) -> TerminalConfigurator {
+        let configurator = configure()
+        configurator.addToViewAndConfigure(view, frame: frame, autoresizingMask: autoresizingMask)
+        return configurator
     }
     
     /// 创建带键盘适配的终端配置器
