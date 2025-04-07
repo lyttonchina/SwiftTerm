@@ -1258,7 +1258,7 @@ extension TerminalView {
     /// Creates a container view around this terminal view with the specified insets
     /// - Parameter insets: The insets to apply around the terminal (default is 8pt on all sides)
     /// - Returns: A container view that wraps this terminal view
-    public func withContainer(insets: NSDirectionalEdgeInsets = NSDirectionalEdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)) -> TerminalContainerView {
+    public func withContainer(insets: NSEdgeInsets = NSEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)) -> TerminalContainerView {
         return TerminalContainerView(terminalView: self, insets: insets)
     }
 }
