@@ -30,8 +30,6 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
     
     // 终端进程
     var terminal: LocalProcessTerminalView!
-    // 终端配置器
-    var configurator: TerminalConfigurator!
     // 终端代理链
     var delegateChain: TerminalDelegateChain!
     // 是否使用透明背景
@@ -94,12 +92,9 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         let allThemes = TerminalThemeManager.shared.getAllThemes()
         print("应用启动时可用主题: \(allThemes.map { $0.name }.joined(separator: ", "))")
         
-        // 创建终端视图
-        terminal = LocalProcessTerminalView(frame: view.frame)
+        // 创建终端视图，一步完成初始化、配置并添加到视图
+        terminal = LocalProcessTerminalView(frame: view.frame, parentView: view)
         ViewController.lastTerminal = terminal
-                
-        // 设置配置器并一步添加到视图
-        configurator = terminal.configureAndAddToView(view, frame: view.bounds)
         
         // 设置进程代理
         terminal.processDelegate = self
@@ -154,7 +149,6 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
             // 打印更多调试信息
             print("当前ViewController: \(self)")
             print("当前terminal: \(String(describing: terminal))")
-            print("当前configurator: \(String(describing: configurator))")
             
             // 应用主题
             if TerminalThemeManager.shared.getTheme(named: themeName) != nil {
@@ -180,10 +174,10 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
     override func viewDidLayout() {
         super.viewDidLayout()
         changingSize = true
-        // 调整容器视图而不是直接调整终端视图
-        configurator.setFrame(view.frame)
+        // 调整终端大小
+        terminal.updateFrameSize(view.frame.size)
         changingSize = false
-        configurator.needsLayout()
+        terminal.updateLayout()
     }
 
 
@@ -487,12 +481,12 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
     
     // 平滑更改字体大小
     func changeFontSize(_ size: CGFloat) {
-        configurator.applyFont(name: "", size: size)
+        terminal.applyFont(name: "", size: size)
     }
     
     // 平滑更改字体
     func changeFont(_ fontName: String, size: CGFloat = 0) {
-        configurator.applyFont(name: fontName, size: size)
+        terminal.applyFont(name: fontName, size: size)
     }
 
     // 应用自定义主题
@@ -501,13 +495,8 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         if let theme = TerminalThemeManager.shared.getTheme(named: themeName) {
             print("应用主题: \(themeName), Theme对象: \(theme)")
             
-            // 检查configurator是否有效
-            if configurator != nil {
-                print("configurator有效，调用configurator.applyTheme")
-                configurator.applyTheme(theme)
-            } else {
-                print("错误: configurator为nil")
-            }
+            // 应用主题到终端
+            terminal.applyCustomTheme(theme)
         } else {
             print("未找到名为 \(themeName) 的主题")
             
@@ -564,7 +553,7 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
     @objc @IBAction
     func toggleTransparentBackground(_ sender: AnyObject) {
         transparent.toggle()
-        configurator.enableTransparentBackground(transparent)
+        terminal.enableTransparentBackground(transparent)
         
         // 更新菜单项状态
         if let menuItem = sender as? NSMenuItem {
@@ -638,7 +627,7 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         print("LocalProcessTerminalViewDelegate.sizeChanged: \(newCols) \(newRows)")
         
         // Only adjust window size if not changing font and window exists
-        if !terminal.isFontSizeChanging() && !changingSize && view.window != nil {
+        if !terminal.isChangingFontSize() && !changingSize && view.window != nil {
             changingSize = true
             var newFrame = terminal.getOptimalFrameSize()
             let windowFrame = view.window!.frame

@@ -67,11 +67,29 @@ public protocol LocalProcessTerminalViewDelegate: AnyObject {
 open class LocalProcessTerminalView: TerminalView, TerminalViewDelegate, LocalProcessDelegate {
     
     var process: LocalProcess!
+    // 内部配置器，不对外公开
+    private var _configurator: TerminalConfigurator?
+    // 标记是否正在更改字体大小
+    public var changingFontSize: Bool = false
     
     public override init (frame: CGRect)
     {
         super.init (frame: frame)
         setup ()
+    }
+    
+    /**
+     * 初始化并配置终端视图，一步完成初始化和添加到父视图
+     * - Parameter frame: 终端视图的框架
+     * - Parameter parentView: 父视图，如果提供，将自动添加到该视图
+     */
+    public convenience init(frame: CGRect, parentView: NSView?) {
+        self.init(frame: frame)
+        
+        // 如果提供了父视图，自动配置并添加
+        if let parent = parentView {
+            configureAndAddToParentView(parent)
+        }
     }
     
     public required init? (coder: NSCoder)
@@ -90,6 +108,87 @@ open class LocalProcessTerminalView: TerminalView, TerminalViewDelegate, LocalPr
      * The `processDelegate` is used to deliver messages and information relevant t
      */
     public weak var processDelegate: LocalProcessTerminalViewDelegate?
+    
+    // MARK: - 配置器相关方法
+    
+    /**
+     * 将终端配置并添加到视图中，返回自身以支持链式调用
+     * - Parameter view: 要添加到的父视图
+     * - Parameter frame: 显示框架，如果为nil则使用父视图的bounds
+     * - Parameter autoresizingMask: 自动调整掩码，默认为宽度和高度自适应
+     * - Returns: 终端视图自身，用于链式调用
+     */
+    @discardableResult
+    public func configureAndAddToParentView(_ view: NSView, frame: CGRect? = nil) -> Self {
+        // 创建内部配置器
+        _configurator = self.configure()
+        
+        // 设置布局
+        _configurator?.addToViewAndConfigure(view, frame: frame)
+        
+        return self
+    }
+    
+    /**
+     * 设置框架大小
+     * - Parameter frame: 新的框架大小
+     */
+    public func updateFrameSize(_ size: NSSize) {
+        // 调用原始的setFrameSize方法
+        super.setFrameSize(size)
+        
+        // 同时更新配置器的框架大小，使容器视图也跟着变化
+        if let frame = self.superview?.bounds {
+            _configurator?.setFrame(frame)
+        }
+    }
+    
+    /**
+     * 需要重新布局
+     */
+    public func updateLayout() {
+        _configurator?.needsLayout()
+    }
+    
+    /**
+     * 应用自定义主题
+     * - Parameter theme: 要应用的主题
+     */
+    public func applyCustomTheme(_ theme: SwiftTerm.ThemeColor) {
+        if let configurator = _configurator {
+            configurator.applyTheme(theme)
+        }
+    }
+    
+    /**
+     * 应用字体
+     * - Parameter name: 字体名称
+     * - Parameter size: 字体大小，如果为0则使用当前大小
+     */
+    public func applyFont(name: String, size: CGFloat = 0) {
+        changingFontSize = true
+        _configurator?.applyFont(name: name, size: size)
+        // 设置一个延迟，确保字体更改完成后重置标志
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.changingFontSize = false
+        }
+    }
+    
+    /**
+     * 启用透明背景
+     * - Parameter transparent: 是否启用透明背景
+     */
+    public func enableTransparentBackground(_ transparent: Bool) {
+        _configurator?.enableTransparentBackground(transparent)
+    }
+    
+    /**
+     * 检查是否正在进行字体大小更改
+     * - Returns: 是否正在更改字体大小
+     */
+    public func isChangingFontSize() -> Bool {
+        return self.changingFontSize
+    }
     
     /**
      * This method is invoked to notify the client of the new columsn and rows that have been set by the UI
