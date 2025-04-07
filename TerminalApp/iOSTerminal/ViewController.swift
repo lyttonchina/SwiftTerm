@@ -264,81 +264,35 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
         originalTerminalDelegate?.iTermContent(source: source, content: content)
     }
     
-    // 处理终端大小变化 - 简化，类似macOS版本
+    // 处理终端大小变化 - 简化，使用库提供的API
     func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
         print("ViewController: 收到终端大小变化通知: \(newCols)x\(newRows)")
 
         // 将大小变化传递给原始代理
         originalTerminalDelegate?.sizeChanged(source: source, newCols: newCols, newRows: newRows)
         
-        // 如果终端视图正在更改字体大小，不调整终端尺寸
-        if tv.isFontSizeChanging() {
+        // 只有在不处于字体变更过程中且未进行尺寸调整时才继续处理
+        if !tv.isFontSizeChanging() && !isChangingSize {
+            isChangingSize = true
+            print("ViewController: 开始调整终端尺寸")
+            
+            if !useAutoLayout {
+                // 让配置器处理框架调整
+                let frame = makeFrame(keyboardDelta: keyboardDelta)
+                configurator.setFrame(frame)
+            }
+            
+            // 使用配置器的方法刷新显示和布局
+            configurator.refreshDisplay()
+            configurator.needsLayout()
+            
+            isChangingSize = false
+            print("ViewController: 终端尺寸调整完成 - 最终尺寸: \(tv.getTerminal().cols)x\(tv.getTerminal().rows)")
+        } else if tv.isFontSizeChanging() {
             print("ViewController: 终端视图正在更改字体大小，不调整终端尺寸")
-            return
-        }
-
-        // 避免在已经调整大小时再次调整，防止递归调用
-        if isChangingSize {
+        } else if isChangingSize {
             print("ViewController: 正在进行大小调整，忽略本次调用")
-            return
         }
-
-        isChangingSize = true
-        print("ViewController: 开始调整终端尺寸")
-        
-        // 计算内容区的理想大小
-        let terminal = tv.getTerminal()
-        
-        // 注意：不能直接访问cellDimension（internal保护级别）
-        // 使用公开API获取估算的单元格尺寸
-        let optimalSize = tv.getOptimalSize()
-        let currentCols = terminal.cols
-        let currentRows = terminal.rows
-        
-        // 估算单元格尺寸
-        let cellWidth = currentCols > 0 ? optimalSize.width / CGFloat(currentCols) : 0
-        let cellHeight = currentRows > 0 ? optimalSize.height / CGFloat(currentRows) : 0
-        
-        // 计算内容区所需的理想尺寸
-        let contentWidth = CGFloat(newCols) * cellWidth
-        let contentHeight = CGFloat(newRows) * cellHeight
-        
-        print("ViewController: 计算内容区域 - 估算单元格尺寸: \(cellWidth)x\(cellHeight), 内容尺寸: \(contentWidth)x\(contentHeight)")
-        
-        // 根据内容区计算调整框架
-        if !useAutoLayout {
-            // 获取基础框架
-            let baseFrame = makeFrame(keyboardDelta: keyboardDelta)
-            
-            // 确保框架至少能容纳内容区
-            let adjustedFrame = CGRect(
-                x: baseFrame.origin.x,
-                y: baseFrame.origin.y,
-                width: max(baseFrame.width, contentWidth),
-                height: max(baseFrame.height, contentHeight)
-            )
-            
-            // 应用调整后的框架
-            configurator.setFrame(adjustedFrame)
-            print("ViewController: 调整框架 - 从 \(baseFrame.size) 到 \(adjustedFrame.size)")
-        }
-        
-        // 刷新显示以确保所有内容可见
-        configurator.refreshDisplay()
-        configurator.needsLayout()
-        
-        // 再次确认终端尺寸正确
-        let updatedCols = terminal.cols
-        let updatedRows = terminal.rows
-        if updatedCols != newCols || updatedRows != newRows {
-            print("ViewController: 警告 - 终端尺寸未正确更新: 期望 \(newCols)x\(newRows), 实际 \(updatedCols)x\(updatedRows)")
-            // 如有必要，可以强制调整终端尺寸
-            terminal.resize(cols: newCols, rows: newRows)
-        }
-        
-        // 重置标志
-        isChangingSize = false
-        print("ViewController: 终端尺寸调整完成 - 最终尺寸: \(terminal.cols)x\(terminal.rows)")
     }
     
     // 获取终端的最佳尺寸
