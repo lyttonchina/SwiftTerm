@@ -173,8 +173,20 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         if #available(macOS 14, *) {
             self.clipsToBounds = true
         }
+        
+        // 初始化颜色，防止空引用
+        _nativeFg = NSColor.textColor
+        _nativeBg = NSColor.textBackgroundColor
+        
+        // 直接调用AppleTerminalView中的setupOptions
+        let width = getEffectiveWidth(size: bounds.size)
+        setupOptions(width: width, height: bounds.height)
+        
+        // 设置层背景色
+        layer?.backgroundColor = nativeBackgroundColor.cgColor
+        
+        // 再设置滚动条和焦点通知
         setupScroller()
-        setupOptions()
         setupFocusNotification()
     }
     
@@ -209,12 +221,6 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         }
     }
     
-    func setupOptions ()
-    {
-        setupOptions (width: getEffectiveWidth (size: bounds.size), height: bounds.height)
-        layer?.backgroundColor = nativeBackgroundColor.cgColor
-    }
-
     /// This controls whether the backspace should send ^? or ^H, the default is ^?
     public var backspaceSendsControlH: Bool = false
     
@@ -233,6 +239,9 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             _nativeFg = newValue
             terminal.foregroundColor = nativeForegroundColor.getTerminalColor ()
             settingFg = false
+            
+            // 当前景色改变时，更新滚动条颜色
+            updateScrollerColors()
         }
     }
 
@@ -249,6 +258,9 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             _nativeBg = newValue
             terminal.backgroundColor = nativeBackgroundColor.getTerminalColor ()
             settingBg = false
+            
+            // 当背景色改变时，更新滚动条颜色
+            updateScrollerColors()
         }
     }
     
@@ -287,6 +299,10 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     @objc
     func scrollerActivated ()
     {
+        guard let scroller = self.scroller else {
+            return
+        }
+        
         switch scroller.hitPart {
         case .decrementPage:
             pageUp()
@@ -309,6 +325,12 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         }
     }
     
+    /// 控制滚动条样式
+    public var scrollerStyle: NSScroller.Style = .legacy {
+        didSet {
+            setupScroller()
+        }
+    }
     
     func setupScroller()
     {
@@ -316,16 +338,166 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             scroller.removeFromSuperview()
         }
 
-        let style: NSScroller.Style = .legacy
-        let scrollerWidth = NSScroller.scrollerWidth(for: .regular, scrollerStyle: style)
-        scroller = NSScroller(frame: NSRect(x: bounds.maxX - scrollerWidth, y: 0, width: scrollerWidth, height: bounds.height))
+        // 使用用户选择的滚动条样式
+        let style: NSScroller.Style = scrollerStyle
+        // 增加滚动条宽度，原始宽度的70%
+        let standardWidth = NSScroller.scrollerWidth(for: .regular, scrollerStyle: style)
+        let scrollerWidth = standardWidth * 0.7 // 从40%增加到70%
+        
+        scroller = CustomScroller(frame: NSRect(x: bounds.maxX - scrollerWidth, y: 0, width: scrollerWidth, height: bounds.height))
         scroller.autoresizingMask = [.minXMargin, .height]
         scroller.scrollerStyle = style
-        scroller.knobProportion = 0.1
-        scroller.isEnabled = false
-        addSubview (scroller)
+        scroller.knobProportion = 0.3 // 设置一个明显的初始比例
+        scroller.isEnabled = true // 确保默认启用
+        addSubview(scroller)
         scroller.action = #selector(scrollerActivated)
         scroller.target = self
+        
+        // 确保滚动条支持图层
+        scroller.wantsLayer = true
+        
+        // 更新滚动条颜色
+        updateScrollerColors()
+    }
+    
+    /// 更新滚动条颜色以匹配当前主题
+    func updateScrollerColors() {
+        // 确保颜色已初始化
+        guard _nativeFg != nil && _nativeBg != nil else {
+            return
+        }
+        
+        // 确保scroller已初始化
+        guard let scroller = self.scroller else {
+            return
+        }
+        
+        // 设置自定义滚动条的颜色
+        if let customScroller = scroller as? CustomScroller {
+            // 使用前景色作为滚动条滑块颜色
+            customScroller.knobColor = nativeForegroundColor
+            
+            // 使用背景色增加10%亮度作为滚动条轨道颜色
+            var hue: CGFloat = 0
+            var saturation: CGFloat = 0
+            var brightness: CGFloat = 0
+            var alpha: CGFloat = 0
+            
+            nativeBackgroundColor.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+            // 增加亮度，但不超过1.0（只增加10%而不是50%）
+            let adjustedBrightness = min(brightness + 0.1, 1.0)
+            let adjustedColor = NSColor(hue: hue, saturation: saturation, brightness: adjustedBrightness, alpha: alpha)
+            
+            customScroller.trackColor = adjustedColor
+            customScroller.needsDisplay = true
+        } else {
+            // 如果不是自定义滚动条，尝试使用KVC设置颜色
+            if #available(macOS 10.14, *) {
+                // 设置为深色外观，这样自定义颜色更容易生效
+                scroller.appearance = NSAppearance(named: .darkAqua)
+                
+                // 计算亮度调整后的背景色（只增加10%）
+                var hue: CGFloat = 0
+                var saturation: CGFloat = 0
+                var brightness: CGFloat = 0
+                var alpha: CGFloat = 0
+                
+                nativeBackgroundColor.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+                let adjustedBrightness = min(brightness + 0.1, 1.0)
+                let adjustedColor = NSColor(hue: hue, saturation: saturation, brightness: adjustedBrightness, alpha: alpha)
+                
+                if let knobCell = scroller.value(forKey: "cell") as? NSObject {
+                    knobCell.setValue(nativeForegroundColor, forKey: "knobColor")
+                    knobCell.setValue(adjustedColor, forKey: "trackColor")
+                }
+                
+                // 尝试设置层颜色
+                if let scrollerLayer = scroller.layer {
+                    scrollerLayer.backgroundColor = adjustedColor.cgColor
+                }
+            }
+            
+            scroller.needsDisplay = true
+        }
+    }
+    
+    /// 自定义滚动条类，可以控制颜色
+    class CustomScroller: NSScroller {
+        var knobColor: NSColor = NSColor.controlAccentColor
+        var trackColor: NSColor = NSColor.clear
+        
+        override func draw(_ dirtyRect: NSRect) {
+            // 清除背景
+            NSColor.clear.setFill()
+            dirtyRect.fill()
+            
+            // 绘制轨道 - 使用圆角矩形
+            let trackInset: CGFloat = 1 // 轨道内边距减少
+            let trackRect = bounds.insetBy(dx: trackInset, dy: trackInset)
+            let trackPath = NSBezierPath(roundedRect: trackRect, xRadius: trackRect.width/2, yRadius: trackRect.width/2)
+            trackColor.setFill()
+            trackPath.fill()
+            
+            // 绘制滑块 - 确保高度正确并可见
+            if isEnabled && knobProportion > 0 {
+                let knobRect = rect(for: .knob)
+                
+                // 确保滑块至少有最小高度
+                var adjustedKnobRect = knobRect
+                let minHeight: CGFloat = 40 // 增加最小高度为40像素
+                if adjustedKnobRect.size.height < minHeight {
+                    // 通过创建新的矩形对象来修改高度
+                    adjustedKnobRect = NSRect(
+                        x: adjustedKnobRect.origin.x,
+                        y: adjustedKnobRect.origin.y,
+                        width: adjustedKnobRect.size.width,
+                        height: min(minHeight, bounds.height / 2)
+                    )
+                }
+                
+                // 使用前景色作为滑块颜色
+                knobColor.setFill()
+                
+                // 使滑块宽度为轨道宽度的80%
+                let knobWidth = trackRect.width * 0.8
+                let knobX = bounds.midX - (knobWidth / 2)
+                
+                // 创建滑块矩形
+                let knobFinalRect = NSRect(
+                    x: knobX, 
+                    y: adjustedKnobRect.origin.y,
+                    width: knobWidth,
+                    height: adjustedKnobRect.size.height)
+                
+                // 绘制有轮廓的圆角滑块
+                let path = NSBezierPath(roundedRect: knobFinalRect, xRadius: knobWidth/2, yRadius: knobWidth/2)
+                path.fill()
+                
+                // 添加边框增强可见性
+                NSColor.white.withAlphaComponent(0.3).setStroke()
+                path.lineWidth = 0.5
+                path.stroke()
+            }
+        }
+    }
+    
+    // 正确实现协议方法
+    public func colorChanged(source: Terminal, idx: Int?, preserveBuffer: Bool = false) {
+        // 如果颜色索引改变，清除颜色缓存
+        if let index = idx {
+            colors [index] = nil
+        } else {
+            colors = Array(repeating: nil, count: 256)
+        }
+        
+        // 更新滚动条颜色
+        updateScrollerColors()
+        
+        // 触发必要的显示更新
+        if !preserveBuffer {
+            terminal.updateFullScreen()
+            queuePendingDisplay()
+        }
     }
     
     /// This method sents the `nativeForegroundColor` and `nativeBackgroundColor`
@@ -334,7 +506,6 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     {
         self.nativeForegroundColor = NSColor.textColor
         self.nativeBackgroundColor = NSColor.textBackgroundColor
-
     }
     
     open func bufferActivated(source: Terminal) {
@@ -350,11 +521,16 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
      */
     open func getOptimalFrameSize () -> NSRect
     {
-        return NSRect (x: 0, y: 0, width: cellDimension.width * CGFloat(terminal.cols) + scroller.frame.width, height: cellDimension.height * CGFloat(terminal.rows))
+        let scrollerWidth = scroller?.frame.width ?? 0
+        return NSRect (x: 0, y: 0, width: cellDimension.width * CGFloat(terminal.cols) + scrollerWidth, height: cellDimension.height * CGFloat(terminal.rows))
     }
     
     func getEffectiveWidth (size: CGSize) -> CGFloat
     {
+        if scroller == nil {
+            // 如果滚动条尚未初始化，返回完整宽度
+            return size.width
+        }
         return (size.width-scroller.frame.width)
     }
     
@@ -386,9 +562,24 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     
     func updateScroller ()
     {
-        scroller.isEnabled = canScroll
+        guard let scroller = self.scroller else {
+            return
+        }
+        
+        // 始终启用滚动条，以便它可见
+        scroller.isEnabled = true
+        
+        // 设置滑块位置
         scroller.doubleValue = scrollPosition
-        scroller.knobProportion = scrollThumbsize
+        
+        // 确保滑块大小合理可见，至少占总高度的10%
+        let minThumbSize: CGFloat = 0.1
+        scroller.knobProportion = max(scrollThumbsize, minThumbSize)
+        
+        // 强制重绘
+        scroller.needsDisplay = true
+        
+        print("更新滚动条: 位置=\(scrollPosition) 大小=\(scroller.knobProportion) 可滚动=\(canScroll)")
     }
     
     var userScrolling = false
