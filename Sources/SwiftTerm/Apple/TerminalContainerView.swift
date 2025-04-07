@@ -127,18 +127,13 @@ public class TerminalContainerView: TTView {
         }
         #else
         // macOS版本获取终端背景色
-        if let terminalView = self.terminalView as? TerminalView {
-            let bgColor = terminalView.nativeBackgroundColor
-            self.backgroundColor = bgColor
-            print("macOS终端容器: 同步背景色为 \(bgColor)")
-            
-            // 确保layer背景色也正确设置
-            self.layer?.backgroundColor = bgColor.cgColor
-            self.needsDisplay = true
-        } else {
-            print("macOS终端容器: 无法找到正确的终端视图")
-            self.backgroundColor = NSColor.black
-        }
+        let bgColor = terminalView.nativeBackgroundColor
+        self.backgroundColor = bgColor
+        print("macOS终端容器: 同步背景色为 \(bgColor)")
+        
+        // 确保layer背景色也正确设置
+        self.layer?.backgroundColor = bgColor.cgColor
+        self.needsDisplay = true
         #endif
     }
     

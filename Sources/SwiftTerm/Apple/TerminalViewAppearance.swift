@@ -298,7 +298,7 @@ extension TerminalView {
         } else {
             newFont = NSFont.monospacedSystemFont(ofSize: actualSize, weight: .regular)
         }
-        performFontChange(newFont: newFont as! CTFont)
+        performFontChange(newFont: newFont as CTFont)
         #elseif os(iOS) || os(visionOS)
         // 尝试创建指定字体，如果失败则使用系统等宽字体
         let newFont: UIFont
