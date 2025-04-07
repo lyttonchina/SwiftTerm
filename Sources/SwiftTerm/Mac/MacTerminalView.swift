@@ -566,8 +566,14 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             return
         }
         
-        // 始终启用滚动条，以便它可见
-        scroller.isEnabled = true
+        // 检查内容是否足以滚动
+        let contentFitsScreen = !canScroll
+        scroller.isHidden = contentFitsScreen
+        
+        // 如果内容不足一屏，提前返回
+        if contentFitsScreen {
+            return
+        }
         
         // 设置滑块位置
         scroller.doubleValue = scrollPosition
@@ -578,8 +584,6 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         
         // 强制重绘
         scroller.needsDisplay = true
-        
-        print("更新滚动条: 位置=\(scrollPosition) 大小=\(scroller.knobProportion) 可滚动=\(canScroll)")
     }
     
     var userScrolling = false
@@ -610,6 +614,9 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             return
         }
         drawTerminalContents (dirtyRect: dirtyRect, context: currentContext, bufferOffset: terminal.buffer.yDisp)
+        
+        // 每次绘制后更新滚动条状态
+        updateScroller()
     }
     
     public override func cursorUpdate(with event: NSEvent)
