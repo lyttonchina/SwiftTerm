@@ -13,7 +13,7 @@ import SwiftUI
 
 class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, UIAdaptivePresentationControllerDelegate {
     var tv: TerminalView!
-    var containerView: TerminalContainerView!
+    var configurator: TerminalConfigurator!
     var transparent: Bool = false
     
     // 设置状态
@@ -42,7 +42,7 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
         let frame = makeFrame(keyboardDelta: keyboardDelta)
         
         // 如果使用了容器视图且找到了它，需要确保容器尺寸正确
-        if let containerView = view.subviews.first(where: { $0 is TerminalContainerView }) as? TerminalContainerView {
+        if let containerView = view.subviews.first(where: { $0 is TerminalContainerView }) {
             return frame
         }
         
@@ -91,9 +91,9 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
         let keyboardViewEndFrame = view.convert(keyboardScreenEndFrame, from: view.window)
         keyboardDelta = keyboardViewEndFrame.height
         
-        // 查找容器视图并调整其位置
         if let containerView = view.subviews.first(where: { $0 is TerminalContainerView }) {
-            containerView.frame = makeFrame(keyboardDelta: keyboardViewEndFrame.height)
+            // 使用配置器调整容器框架
+            configurator.setFrame(makeFrame(keyboardDelta: keyboardViewEndFrame.height))
         } else {
             // 如果没有找到容器视图，则直接调整终端视图（兼容旧代码）
             tv.frame = makeFrame(keyboardDelta: keyboardViewEndFrame.height)
@@ -101,12 +101,11 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
     }
     
     @objc private func keyboardWillHide(_ notification: NSNotification) {
-        //let key = UIResponder.keyboardFrameBeginUserInfoKey
         keyboardDelta = 0
         
-        // 查找容器视图并调整其位置
-        if let containerView = view.subviews.first(where: { $0 is TerminalContainerView }) {
-            containerView.frame = makeFrame(keyboardDelta: 0)
+        if let _ = view.subviews.first(where: { $0 is TerminalContainerView }) {
+            // 使用配置器调整容器框架
+            configurator.setFrame(makeFrame(keyboardDelta: 0))
         } else {
             // 如果没有找到容器视图，则直接调整终端视图（兼容旧代码）
             tv.frame = makeFrame(keyboardDelta: 0)
@@ -114,9 +113,9 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
     }
     
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
-        // 查找容器视图并调整其尺寸
-        if let containerView = view.subviews.first(where: { $0 is TerminalContainerView }) {
-            containerView.frame = CGRect(origin: containerView.frame.origin, size: size)
+        if let _ = view.subviews.first(where: { $0 is TerminalContainerView }) {
+            // 使用配置器调整容器框架
+            configurator.setFrame(CGRect(origin: CGPoint.zero, size: size))
         } else {
             // 如果没有找到容器视图，则直接调整终端视图（兼容旧代码）
             tv.frame = CGRect(origin: tv.frame.origin, size: size)
@@ -134,13 +133,10 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
         // 设置自己为终端视图的代理
         if let sshTerminalView = tv as? SshTerminalView {
             // 保留原有的代理
-            let originalDelegate = sshTerminalView.terminalDelegate
+            originalTerminalDelegate = sshTerminalView.terminalDelegate
             
-            // 为终端视图设置一个新的代理链
+            // 设置终端代理
             sshTerminalView.terminalDelegate = self
-            
-            // 存储原始代理，以便在需要时使用
-            self.originalTerminalDelegate = originalDelegate
         }
         
         if transparent {
@@ -155,26 +151,13 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
             view.layer.addSublayer(layer)
         }
         
-        // 创建一个容器视图，它在终端视图周围提供简单的边距
-        let containerView = tv.withContainer()
-        containerView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        // 创建配置器并一步添加到视图
+        configurator = tv.configureAndAddToView(view, frame: makeFrame(keyboardDelta: 0))
         
-        // 确保容器有正确的背景色
-        print("ViewDidLoad: 终端视图的backgroundColor: \(tv.backgroundColor ?? UIColor.clear)")
-        
-        // 根据透明模式设置容器视图背景色
-        if !transparent {
-            containerView.backgroundColor = tv.backgroundColor
-        } else {
-            containerView.backgroundColor = UIColor.clear
+        // 设置透明度
+        if transparent {
+            configurator.enableTransparentBackground(true)
         }
-        print("ViewDidLoad: 设置容器背景色为: \(containerView.backgroundColor ?? UIColor.clear)")
-        
-        // 将容器视图添加到视图层次结构
-        view.addSubview(containerView)
-        
-        // 保存对容器视图的引用
-        self.containerView = containerView
         
         setupKeyboardMonitor()
         
@@ -200,31 +183,33 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
         
         // 应用当前主题
         if let theme = themes.first(where: { $0.name == settings.themeName }) ?? themes.first {
-            // 创建用于TerminalView的ThemeColor
-            let terminalTheme = TerminalView.TerminalThemeColor(
-                ansiColors: theme.ansi,
-                foreground: theme.foreground, 
+            // 创建一个SwiftTerm.ThemeColor对象
+            let swiftTermTheme = SwiftTerm.ThemeColor(
+                name: theme.name,
+                ansi: theme.ansi,
                 background: theme.background,
+                foreground: theme.foreground,
                 cursor: theme.cursor,
-                selectionColor: theme.selectionColor,
-                isLight: Double(theme.background.brightness) > 0.5
+                cursorText: theme.cursorText,
+                selectedText: theme.selectedText,
+                selectionColor: theme.selectionColor
             )
             
-            // 直接调用 SwiftTerm 的 applyTheme 方法
-            tv.applyTheme(theme: terminalTheme)
+            // 使用配置器应用主题
+            configurator.applyTheme(swiftTermTheme)
         }
         
         // 应用保存的字体和字体大小
-        tv.changeFontSmoothly(fontName: settings.fontName, size: settings.fontSize)
+        configurator.applyFont(name: settings.fontName, size: settings.fontSize)
     }
     
     override func viewWillLayoutSubviews() {
         if useAutoLayout, #available(iOS 15.0, *) {
             // 使用自动布局，不需要手动设置框架
         } else {
-            // 查找容器视图并调整其位置
-            if let containerView = view.subviews.first(where: { $0 is TerminalContainerView }) {
-                containerView.frame = makeFrame(keyboardDelta: keyboardDelta)
+            if let _ = view.subviews.first(where: { $0 is TerminalContainerView }) {
+                // 使用配置器调整容器框架
+                configurator.setFrame(makeFrame(keyboardDelta: keyboardDelta))
                 
                 // 强制终端视图重新绘制
                 DispatchQueue.main.async {
@@ -237,7 +222,7 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
         }
         
         if transparent {
-            tv.backgroundColor = UIColor.clear
+            configurator.enableTransparentBackground(true)
         }
     }
     
@@ -281,31 +266,70 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
     
     // 处理终端大小变化
     func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
+        print("TerminalViewDelegate.sizeChanged: \(newCols) x \(newRows)")
+        
         // 如果终端视图正在更改字体大小，不进行额外处理
         if tv.isFontSizeChanging() {
-            // 标记稍后需要进行布局刷新
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                self.updateTerminalSize()
-            }
+            print("字体大小正在变更中，延迟处理终端尺寸变化")
             
             // 将大小变化传递给原始代理
             originalTerminalDelegate?.sizeChanged(source: source, newCols: newCols, newRows: newRows)
+            
+            // 标记稍后需要进行布局刷新（稍微延迟处理，确保完成字体计算）
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.updateTerminalSize()
+                
+                // 完成后，再次刷新以确保内容正确显示
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    print("字体大小变更后，再次刷新终端显示")
+                    
+                    // 获取当前视图尺寸
+                    let viewWidth = self.view.bounds.width - self.view.safeAreaInsets.left - self.view.safeAreaInsets.right
+                    let viewHeight = self.view.bounds.height - self.view.safeAreaInsets.top - self.keyboardDelta
+                    
+                    // 在容器视图或终端视图上强制刷新
+                    if let containerView = self.view.subviews.first(where: { $0 is TerminalContainerView }) {
+                        containerView.setNeedsLayout()
+                        containerView.layoutIfNeeded()
+                    }
+                    
+                    // 刷新视图，让终端控制自己的显示
+                    self.tv.setNeedsDisplay(self.tv.bounds)
+                    
+                    // 确保配置器重新同步
+                    self.configurator.refreshDisplay()
+                    
+                    print("完成终端尺寸调整，新尺寸: \(self.tv.getTerminal().cols) x \(self.tv.getTerminal().rows)")
+                }
+            }
             return
         }
         
-        // 获取最佳尺寸
-        let optimalSize = getOptimalTerminalSize()
+        print("常规终端尺寸变化处理")
         
-        // 确保终端视图使用最佳尺寸
+        // 计算可用视图尺寸
+        let viewWidth = self.view.bounds.width - self.view.safeAreaInsets.left - self.view.safeAreaInsets.right
+        let viewHeight = self.view.bounds.height - self.view.safeAreaInsets.top - self.keyboardDelta
+        
+        // 确保终端视图使用合适尺寸
         DispatchQueue.main.async {
             if !self.useAutoLayout {
-                // 如果不使用自动布局，手动调整视图大小
-                self.tv.frame = CGRect(
-                    x: self.tv.frame.origin.x,
-                    y: self.tv.frame.origin.y,
-                    width: optimalSize.width,
-                    height: optimalSize.height
-                )
+                // 如果不使用自动布局，调整容器或终端视图
+                if let containerView = self.view.subviews.first(where: { $0 is TerminalContainerView }) {
+                    containerView.frame = CGRect(
+                        x: self.view.safeAreaInsets.left,
+                        y: self.view.safeAreaInsets.top,
+                        width: viewWidth,
+                        height: viewHeight
+                    )
+                } else {
+                    self.tv.frame = CGRect(
+                        x: self.view.safeAreaInsets.left,
+                        y: self.view.safeAreaInsets.top,
+                        width: viewWidth,
+                        height: viewHeight
+                    )
+                }
             }
             
             // 强制重新布局
@@ -414,29 +438,31 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
         if let theme = themes.first(where: { $0.name == name }) ?? themes.first {
             print("ViewController: 开始应用主题: \(name)")
             
-            // 创建用于TerminalView的ThemeColor
-            let terminalTheme = TerminalView.TerminalThemeColor(
-                ansiColors: theme.ansi,
-                foreground: theme.foreground,
+            // 创建一个SwiftTerm.ThemeColor对象
+            let swiftTermTheme = SwiftTerm.ThemeColor(
+                name: theme.name,
+                ansi: theme.ansi,
                 background: theme.background,
+                foreground: theme.foreground,
                 cursor: theme.cursor,
-                selectionColor: theme.selectionColor,
-                isLight: Double(theme.background.brightness) > 0.5
+                cursorText: theme.cursorText,
+                selectedText: theme.selectedText,
+                selectionColor: theme.selectionColor
             )
             
-            // 应用主题
-            tv.applyTheme(theme: terminalTheme)
+            // 使用配置器应用主题
+            configurator.applyTheme(swiftTermTheme)
             
             print("ViewController: 应用主题后终端背景色: \(tv.backgroundColor ?? UIColor.clear)")
             
             // 根据透明模式设置容器视图背景色
             if !transparent {
-                containerView.backgroundColor = tv.backgroundColor
+                configurator.syncContainerBackgroundColor()
             } else {
-                containerView.backgroundColor = UIColor.clear
+                configurator.enableTransparentBackground(true)
             }
             
-            print("ViewController: 容器背景色设置完成: \(containerView.backgroundColor ?? UIColor.clear)")
+            print("ViewController: 容器背景色设置完成")
             
             // 保存主题名
             UserDefaults.standard.set(name, forKey: "lastTheme")
@@ -450,15 +476,6 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
             
             // 应用主题
             applyTheme(themeName)
-            
-            // 根据透明模式设置容器视图背景色
-            if !transparent {
-                containerView.backgroundColor = tv.backgroundColor
-            } else {
-                containerView.backgroundColor = UIColor.clear
-            }
-            
-            print("ViewController: 主题变更通知中设置容器背景色: \(containerView.backgroundColor ?? UIColor.clear)")
         }
     }
     
@@ -485,20 +502,124 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
         DispatchQueue.main.async {
             // 如果终端视图在字体变化中，先等一会再更新
             if self.tv.isFontSizeChanging() {
+                print("字体大小正在变更中，延迟更新布局")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     self.updateTerminalSize()
                 }
                 return
             }
             
-            // 强制容器视图刷新
-            if let containerView = self.view.subviews.first(where: { $0 is TerminalContainerView }) {
+            print("开始更新终端尺寸")
+            
+            // 先重新计算行列数
+            let terminalCols = self.tv.getTerminal().cols
+            let terminalRows = self.tv.getTerminal().rows
+            
+            // 获取当前视图尺寸
+            let viewWidth = self.view.bounds.width - self.view.safeAreaInsets.left - self.view.safeAreaInsets.right
+            let viewHeight = self.view.bounds.height - self.view.safeAreaInsets.top - self.keyboardDelta
+            
+            print("当前可用视图尺寸: \(viewWidth) x \(viewHeight)")
+            print("当前终端行列数: \(terminalCols) x \(terminalRows)")
+            
+            // 获取最佳尺寸 - 基于当前字体的单元格大小
+            let optimalSize = self.getOptimalTerminalSize()
+            print("计算的最佳终端尺寸: \(optimalSize.width) x \(optimalSize.height)")
+            
+            // 显式使用TerminalConfigurator调整终端视图
+            if let containerView = self.view.subviews.first(where: { $0 is TerminalContainerView }) as? TerminalContainerView {
+                print("使用容器视图调整尺寸")
+                
+                // 如果不使用自动布局，手动调整容器视图大小
+                if !self.useAutoLayout {
+                    containerView.frame = CGRect(
+                        x: self.view.safeAreaInsets.left,
+                        y: self.view.safeAreaInsets.top,
+                        width: viewWidth,
+                        height: viewHeight
+                    )
+                }
+                
+                // 刷新容器视图
                 containerView.setNeedsLayout()
                 containerView.layoutIfNeeded()
+            } else if !self.useAutoLayout {
+                // 如果没有容器视图，直接调整终端视图大小
+                print("直接调整终端视图尺寸")
+                self.tv.frame = CGRect(
+                    x: self.view.safeAreaInsets.left,
+                    y: self.view.safeAreaInsets.top,
+                    width: viewWidth,
+                    height: viewHeight
+                )
             }
             
-            // 强制终端视图重新绘制
-            self.tv.setNeedsDisplay(self.tv.bounds)
+            // 使用配置器刷新显示
+            print("使用配置器刷新显示")
+            self.configurator.refreshDisplay()
+            
+            // 确保显示准确，稍后强制重绘
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                // 请求首次响应者，确保正确处理输入
+                _ = self.tv.becomeFirstResponder()
+                
+                // 通过scrollPosition触发内容重绘
+                if self.tv.canScroll {
+                    let position = self.tv.scrollPosition
+                    self.scrolled(source: self.tv, position: position)
+                }
+                
+                // 强制终端视图重新绘制
+                print("强制终端视图重新绘制")
+                self.tv.setNeedsDisplay(self.tv.bounds)
+                
+                // 再次刷新，确保内容完全更新
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.configurator.refreshDisplay()
+                    self.tv.setNeedsDisplay(self.tv.bounds)
+                    
+                    print("终端尺寸更新完成")
+                    print("更新后终端行列数: \(self.tv.getTerminal().cols) x \(self.tv.getTerminal().rows)")
+                    print("更新后终端视图尺寸: \(self.tv.frame.width) x \(self.tv.frame.height)")
+                }
+            }
+        }
+    }
+    
+    // 处理字体变更
+    func applyFont(name: String, size: CGFloat) {
+        print("应用字体变更: \(name), 大小: \(size)")
+        
+        // 在字体变更前保存当前终端状态信息
+        let isAltBuffer = !self.tv.canScroll
+        let scrollPosition = self.tv.scrollPosition
+        
+        // 设置字体
+        configurator.applyFont(name: name, size: size)
+        
+        // 等待字体变更完成后调整内容
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            // 强制刷新容器
+            self.configurator.refreshDisplay()
+            
+            // 如果不是替代缓冲区且可以滚动，尝试恢复滚动位置
+            if !isAltBuffer && self.tv.canScroll {
+                print("恢复滚动位置: \(scrollPosition)")
+                self.scrolled(source: self.tv, position: scrollPosition)
+            }
+            
+            // 额外进行一次完整的布局更新
+            self.updateTerminalSize()
+            
+            // 再次更新显示
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                if let containerView = self.view.subviews.first(where: { $0 is TerminalContainerView }) {
+                    containerView.setNeedsLayout()
+                }
+                self.tv.setNeedsDisplay(self.tv.bounds)
+                
+                print("字体变更完成，新终端尺寸: \(self.tv.getTerminal().cols) x \(self.tv.getTerminal().rows)")
+            }
         }
     }
 }

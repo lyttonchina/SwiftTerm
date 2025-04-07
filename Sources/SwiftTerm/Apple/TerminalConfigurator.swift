@@ -19,8 +19,11 @@ public class TerminalConfigurator {
         
         // 立即设置容器初始背景色
         #if os(iOS) || os(visionOS)
-        if let bgColor = terminalView.backgroundColor ?? terminalView.nativeBackgroundColor {
-            containerView.backgroundColor = bgColor
+        // iOS 中直接设置背景色，避免使用条件绑定
+        if terminalView.backgroundColor != nil {
+            containerView.backgroundColor = terminalView.backgroundColor
+        } else if terminalView.nativeBackgroundColor != nil {
+            containerView.backgroundColor = terminalView.nativeBackgroundColor
         }
         #elseif os(macOS)
         containerView.setBackgroundColorSilently(terminalView.nativeBackgroundColor)
@@ -47,16 +50,29 @@ public class TerminalConfigurator {
     ///   - autoresizingMask: 自动调整掩码，默认为宽度和高度自适应
     /// - Returns: 配置器自身，用于链式调用
     @discardableResult
-    public func addToViewAndConfigure(_ view: TTView, frame: CGRect? = nil, autoresizingMask: TTView.AutoresizingMask = [.width, .height]) -> Self {
+    public func addToViewAndConfigure(_ view: TTView, frame: CGRect? = nil, autoresizingMask: TTView.AutoresizingMask? = nil) -> Self {
         // 添加到父视图
         view.addSubview(containerView)
         
         // 设置框架和自动调整
         containerView.frame = frame ?? view.bounds
-        containerView.autoresizingMask = autoresizingMask
+        
+        // 根据平台提供默认的自动调整掩码
+        let defaultMask: TTView.AutoresizingMask
+        #if os(iOS) || os(visionOS)
+        defaultMask = [.flexibleWidth, .flexibleHeight]
+        #elseif os(macOS)
+        defaultMask = [.width, .height]
+        #endif
+        
+        containerView.autoresizingMask = autoresizingMask ?? defaultMask
         
         // 刷新显示
+        #if os(iOS) || os(visionOS)
+        containerView.setNeedsDisplay()
+        #elseif os(macOS)
         containerView.needsDisplay = true
+        #endif
         
         // 按照透明设置同步背景色
         #if os(iOS) || os(visionOS)
@@ -84,12 +100,20 @@ public class TerminalConfigurator {
     
     // 新增方法 - 刷新显示
     public func refreshDisplay() {
+        #if os(iOS) || os(visionOS)
+        containerView.setNeedsDisplay()
+        #elseif os(macOS)
         containerView.needsDisplay = true
+        #endif
     }
     
     // 新增方法 - 需要布局
     public func needsLayout() {
+        #if os(iOS) || os(visionOS)
+        containerView.setNeedsLayout()
+        #elseif os(macOS)
         containerView.needsLayout = true
+        #endif
     }
     
     // 应用主题

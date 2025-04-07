@@ -68,21 +68,11 @@ struct RunningTerminalConfig: View {
                 // 字体
                 Section {
                     FontSelector(fontName: $fontName)
-                        // 移除实时预览
-                        //.onReceive(Just(fontName)) { newFont in
-                        //    // 实时预览字体变化
-                        //    terminal.changeFontSmoothly(fontName: newFont, size: fontSize)
-                        //}
                 }
                 
                 // 字体大小
                 Section {
                     FontSizeSelector(fontName: fontName, fontSize: $fontSize)
-                        // 移除实时预览
-                        //.onReceive(Just(fontSize)) { newSize in
-                        //    // 实时预览字体大小变化
-                        //    terminal.changeFontSizeSmoothly(newSize)
-                        //}
                 }
                 
                 // 添加提示信息

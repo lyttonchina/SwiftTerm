@@ -36,9 +36,18 @@ extension TerminalView {
     ///   - frame: 显示框架，如果为nil则使用父视图的bounds
     ///   - autoresizingMask: 自动调整掩码，默认为宽度和高度自适应
     /// - Returns: 配置好的终端配置器
-    public func configureAndAddToView(_ view: TTView, frame: CGRect? = nil, autoresizingMask: TTView.AutoresizingMask = [.width, .height]) -> TerminalConfigurator {
+    public func configureAndAddToView(_ view: TTView, frame: CGRect? = nil, autoresizingMask: TTView.AutoresizingMask? = nil) -> TerminalConfigurator {
         let configurator = configure()
-        configurator.addToViewAndConfigure(view, frame: frame, autoresizingMask: autoresizingMask)
+        
+        // 根据平台提供默认的自动调整掩码
+        let defaultMask: TTView.AutoresizingMask
+        #if os(iOS) || os(visionOS)
+        defaultMask = [.flexibleWidth, .flexibleHeight]
+        #elseif os(macOS)
+        defaultMask = [.width, .height]
+        #endif
+        
+        configurator.addToViewAndConfigure(view, frame: frame, autoresizingMask: autoresizingMask ?? defaultMask)
         return configurator
     }
     
