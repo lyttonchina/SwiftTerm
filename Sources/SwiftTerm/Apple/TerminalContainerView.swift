@@ -4,154 +4,174 @@
 //  Created to add a container around terminal views with customizable margins
 //
 
-#if os(macOS) || os(iOS) || os(visionOS)
+#if os(iOS) || os(visionOS) || os(macOS)
 import Foundation
-import CoreGraphics
-import SwiftTerm
-
 #if os(iOS) || os(visionOS)
 import UIKit
-public typealias ContainerView = UIView
-public typealias PlatformView = UIView
+public typealias TTView = UIView
 public typealias EdgeInsets = UIEdgeInsets
-#endif
-
-#if os(macOS)
+#else
 import AppKit
-public typealias PlatformView = NSView
+public typealias TTView = NSView
 public typealias EdgeInsets = NSEdgeInsets
 #endif
 
-/// A container view that wraps a terminal view and provides configurable margins
-public class TerminalContainerView: PlatformView {
-    /// The wrapped terminal view
-    public let terminalView: PlatformView
+/// A container view that wraps a terminal view and provides margins
+public class TerminalContainerView: TTView {
+    /// The terminal view that this container contains
+    public let terminalView: TerminalView
     
-    /// The insets applied to the terminal view
-    public var contentInsets: EdgeInsets {
-        didSet {
-            updateTerminalFrame()
+    /// The insets around the terminal view
+    public let insets: EdgeInsets
+    
+    #if os(macOS)
+    /// The background color of the container view (macOS version)
+    private var _backgroundColor: NSColor = NSColor.clear
+    
+    /// The background color of the container view (macOS version)
+    public var backgroundColor: NSColor {
+        get { return _backgroundColor }
+        set { 
+            _backgroundColor = newValue
+            // 确保背景色变更时更新layer
+            self.layer?.backgroundColor = newValue.cgColor
+            self.needsDisplay = true
+            print("TerminalContainerView: 背景色已设置为 \(newValue)")
         }
     }
     
-    /// Creates a new container view with the specified terminal view and insets
+    public override var wantsUpdateLayer: Bool {
+        return true
+    }
+    
+    public override func updateLayer() {
+        super.updateLayer()
+        print("TerminalContainerView.updateLayer: 设置layer背景色为 \(_backgroundColor)")
+        layer?.backgroundColor = _backgroundColor.cgColor
+    }
+    
+    public override func draw(_ dirtyRect: NSRect) {
+        print("TerminalContainerView.draw: 绘制背景色 \(_backgroundColor)")
+        _backgroundColor.setFill()
+        dirtyRect.fill()
+        super.draw(dirtyRect)
+    }
+    
+    public override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        // 视图添加到窗口时，确保背景色正确
+        syncBackgroundColor()
+    }
+    
+    public override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        // 视图添加到父视图时，确保背景色正确
+        syncBackgroundColor()
+    }
+    #endif
+    
+    /// Initializes a container view around the given terminal view with specified insets
     /// - Parameters:
-    ///   - terminalView: The terminal view to wrap
-    ///   - insets: The insets to apply to the terminal view (default is 8pt on all sides)
-    public init(terminalView: PlatformView, insets: EdgeInsets = EdgeInsets(top: 8, left: 8, bottom: 8, right: 8)) {
+    ///   - terminalView: The terminal view to contain
+    ///   - insets: The insets around the terminal view
+    public init(terminalView: TerminalView, insets: EdgeInsets) {
         self.terminalView = terminalView
-        self.contentInsets = insets
+        self.insets = insets
         
-        #if os(macOS)
-        super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
-        self.wantsLayer = true
-        #elseif os(iOS) || os(visionOS)
-        super.init(frame: CGRect(x: 0, y: 0, width: 800, height: 600))
+        #if os(iOS) || os(visionOS)
+        super.init(frame: .zero)
+        #else
+        super.init(frame: .zero)
+        wantsLayer = true
         #endif
         
         addSubview(terminalView)
-        updateTerminalFrame()
-        
-        // 初始化时同步背景色
-        syncBackgroundColor()
+        setupLayout()
     }
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
-    /// 同步容器视图与终端视图的背景色
+    // 确保终端视图正确布局在容器中
+    private func setupLayout() {
+        #if os(iOS) || os(visionOS)
+        terminalView.translatesAutoresizingMaskIntoConstraints = false
+        
+        NSLayoutConstraint.activate([
+            terminalView.topAnchor.constraint(equalTo: topAnchor, constant: insets.top),
+            terminalView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: insets.left),
+            bottomAnchor.constraint(equalTo: terminalView.bottomAnchor, constant: insets.bottom),
+            trailingAnchor.constraint(equalTo: terminalView.trailingAnchor, constant: insets.right)
+        ])
+        #else
+        terminalView.translatesAutoresizingMaskIntoConstraints = false
+        
+        NSLayoutConstraint.activate([
+            terminalView.topAnchor.constraint(equalTo: topAnchor, constant: insets.top),
+            terminalView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: insets.left),
+            bottomAnchor.constraint(equalTo: terminalView.bottomAnchor, constant: insets.bottom),
+            trailingAnchor.constraint(equalTo: terminalView.trailingAnchor, constant: insets.right)
+        ])
+        #endif
+    }
+    
+    /// 同步背景颜色与终端视图
     public func syncBackgroundColor() {
         #if os(iOS) || os(visionOS)
-        if let tv = terminalView as? TerminalView {
-            print("TerminalContainerView: 尝试同步背景色，终端背景色: \(tv.backgroundColor)")
-            // 如果背景色是透明的，保持容器也透明
-            if tv.backgroundColor == UIColor.clear {
-                self.backgroundColor = UIColor.clear
-            } else {
-                // 如果终端背景色是有色的，则使用该颜色
-                self.backgroundColor = tv.backgroundColor
-                
-                // 确保背景色不是 nil，如果是则设置默认黑色背景
-                if self.backgroundColor == nil {
-                    self.backgroundColor = UIColor.black
-                    print("TerminalContainerView: 终端背景色为 nil，设置默认黑色背景")
-                }
-            }
-            print("TerminalContainerView: 同步后容器背景色: \(self.backgroundColor)")
+        if let terminalBgColor = terminalView.backgroundColor {
+            self.backgroundColor = terminalBgColor
+            print("iOS终端容器: 同步背景色为 \(terminalBgColor)")
         } else {
-            print("TerminalContainerView: 无法从终端获取背景色，找不到 TerminalView 实例")
-            // 设置默认背景色
-            self.backgroundColor = UIColor.black
+            print("iOS终端容器: 终端背景色为nil")
         }
-        #elseif os(macOS)
-        if let tv = terminalView as? TerminalView {
-            if let bgColor = tv.layer?.backgroundColor {
-                self.layer?.backgroundColor = bgColor
-                print("TerminalContainerView: macOS 同步背景色成功")
-            } else {
-                print("TerminalContainerView: macOS 终端背景色为 nil")
-                // 设置默认背景色
-                self.layer?.backgroundColor = NSColor.black.cgColor
-            }
+        #else
+        // macOS版本获取终端背景色
+        if let terminalView = self.terminalView as? TerminalView {
+            let bgColor = terminalView.nativeBackgroundColor
+            self.backgroundColor = bgColor
+            print("macOS终端容器: 同步背景色为 \(bgColor)")
+            
+            // 确保layer背景色也正确设置
+            self.layer?.backgroundColor = bgColor.cgColor
+            self.needsDisplay = true
+        } else {
+            print("macOS终端容器: 无法找到正确的终端视图")
+            self.backgroundColor = NSColor.black
         }
         #endif
     }
     
-    private func updateTerminalFrame() {
-        #if os(iOS) || os(visionOS)
-        let availableWidth = bounds.width - contentInsets.left - contentInsets.right
-        let availableHeight = bounds.height - contentInsets.top - contentInsets.bottom
-        
-        terminalView.frame = CGRect(
-            x: contentInsets.left,
-            y: contentInsets.top,
-            width: max(0, availableWidth),
-            height: max(0, availableHeight)
-        )
-        #elseif os(macOS)
-        let availableWidth = bounds.width - contentInsets.left - contentInsets.right
-        let availableHeight = bounds.height - contentInsets.top - contentInsets.bottom
-        
-        terminalView.frame = CGRect(
-            x: contentInsets.left,
-            y: contentInsets.top,
-            width: max(0, availableWidth),
-            height: max(0, availableHeight)
-        )
-        #endif
+    // 重写调整大小方法，确保终端视图在容器中正确调整大小
+    #if os(macOS)
+    public override func resizeSubviews(withOldSize oldSize: NSSize) {
+        super.resizeSubviews(withOldSize: oldSize)
+        updateTerminalFrame()
     }
-    
-    #if os(iOS) || os(visionOS)
+    #else
     public override func layoutSubviews() {
         super.layoutSubviews()
         updateTerminalFrame()
-        
-        // 布局变化时同步背景色
-        syncBackgroundColor()
     }
     #endif
     
-    #if os(macOS)
-    public override func layout() {
-        super.layout()
-        updateTerminalFrame()
-        
-        // 布局变化时同步背景色
-        syncBackgroundColor()
-    }
-    
-    public override var frame: NSRect {
-        didSet {
-            updateTerminalFrame()
+    private func updateTerminalFrame() {
+        #if os(iOS) || os(visionOS)
+        let newFrame = bounds.inset(by: insets)
+        if terminalView.frame != newFrame {
+            terminalView.frame = newFrame
         }
-    }
-    
-    public override var bounds: NSRect {
-        didSet {
-            updateTerminalFrame()
+        #else
+        let newFrame = NSRect(
+            x: insets.left,
+            y: insets.top,
+            width: bounds.width - insets.left - insets.right,
+            height: bounds.height - insets.top - insets.bottom
+        )
+        if terminalView.frame != newFrame {
+            terminalView.frame = newFrame
         }
+        #endif
     }
-    #endif
 }
 #endif 

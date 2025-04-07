@@ -30,6 +30,10 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
     
     // 终端进程
     var terminal: LocalProcessTerminalView!
+    // 终端容器视图
+    var containerView: TerminalContainerView!
+    // 是否使用透明背景
+    var transparent: Bool = false
 
     static weak var lastTerminal: LocalProcessTerminalView!
     
@@ -80,6 +84,8 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
     override func viewDidLoad() {
         super.viewDidLoad()
         test ()
+        
+        // 创建终端视图
         terminal = LocalProcessTerminalView(frame: view.frame)
         ViewController.lastTerminal = terminal
         terminal.processDelegate = self
@@ -90,13 +96,36 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         
         // 设置设置菜单
         setupSettingsMenu()
-
+        
+        // 创建容器视图包装终端，提供边距
+        containerView = terminal.withContainer(insets: NSEdgeInsets(top: 8, left: 8, bottom: 8, right: 8))
+        
+        // 设置容器视图的背景色
+        if !transparent {
+            print("初始化: 即将同步容器背景色")
+            containerView.syncBackgroundColor()
+            print("初始化: 容器背景色同步完成")
+        } else {
+            print("初始化: 设置透明背景")
+            containerView.backgroundColor = NSColor.clear
+        }
+        
+        // 添加容器视图而不是直接添加终端视图
+        view.addSubview(containerView)
+        
+        // 确保容器视图填充整个视图区域
+        containerView.frame = view.bounds
+        containerView.autoresizingMask = [.width, .height]
+        
+        // 强制刷新
+        containerView.needsDisplay = true
+        
         let shell = getShell()
         let shellIdiom = "-" + NSString(string: shell).lastPathComponent
         
         FileManager.default.changeCurrentDirectoryPath (FileManager.default.homeDirectoryForCurrentUser.path)
         terminal.startProcess (executable: shell, execName: shellIdiom)
-        view.addSubview(terminal)
+        
         logging = NSUserDefaultsController.shared.defaults.bool(forKey: "LogHostOutput")
         updateLogging ()
         
@@ -127,12 +156,39 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         settingsView.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
         settingsView.isHidden = true
         self.view.addSubview(settingsView)
+        
+        // 同步容器背景色
+        syncContainerBackgroundColor()
+    }
+    
+    // 同步容器背景色
+    func syncContainerBackgroundColor() {
+        if !transparent {
+            print("VC.syncContainerBackgroundColor: 终端当前背景色为 \(terminal.nativeBackgroundColor)")
+            containerView.syncBackgroundColor()
+            
+            // 确保同步后强制刷新
+            containerView.layer?.backgroundColor = containerView.backgroundColor.cgColor
+            containerView.needsDisplay = true
+            
+            print("VC.syncContainerBackgroundColor: 同步后容器背景色为 \(containerView.backgroundColor)")
+        } else {
+            containerView.backgroundColor = NSColor.clear
+            containerView.layer?.backgroundColor = NSColor.clear.cgColor
+            containerView.needsDisplay = true
+            print("VC.syncContainerBackgroundColor: 设置容器为透明背景")
+        }
     }
     
     @objc func handleThemeChange(_ notification: Notification) {
         if let userInfo = notification.userInfo,
            let themeName = userInfo["themeName"] as? String {
+            print("收到主题变更通知: \(themeName)")
+            
+            // 应用主题
             applyTheme(themeName: themeName)
+            
+            // 主题变更后在稍后同步容器背景色 (已在applyTheme内部处理)
         }
     }
     
@@ -148,9 +204,10 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
     override func viewDidLayout() {
         super.viewDidLayout()
         changingSize = true
-        terminal.frame = view.frame
+        // 调整容器视图而不是直接调整终端视图
+        containerView.frame = view.frame
         changingSize = false
-        terminal.needsLayout = true
+        containerView.needsLayout = true
     }
 
 
@@ -347,6 +404,11 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
                 m.state = terminal.optionAsMetaKey ? NSControl.StateValue.on : NSControl.StateValue.off
             }
         }
+        if item.action == #selector(toggleTransparentBackground(_:)) {
+            if let m = item as? NSMenuItem {
+                m.state = transparent ? NSControl.StateValue.on : NSControl.StateValue.off
+            }
+        }
         
         // Only enable "Export selection" if we have a selection
         if item.action == #selector(exportSelection(_:)) {
@@ -388,6 +450,15 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
             
             // 将设置菜单项添加到设置菜单
             settingsMenu.addItem(settingsMenuItem)
+            
+            // 添加分隔线
+            settingsMenu.addItem(NSMenuItem.separator())
+            
+            // 添加透明背景选项
+            let transparentMenuItem = NSMenuItem(title: "透明背景", action: #selector(toggleTransparentBackground(_:)), keyEquivalent: "t")
+            transparentMenuItem.keyEquivalentModifierMask = [.command, .option]
+            transparentMenuItem.state = transparent ? .on : .off
+            settingsMenu.addItem(transparentMenuItem)
             
             // 创建设置主菜单项
             let settingsMainMenuItem = NSMenuItem(title: "设置", action: nil, keyEquivalent: "")
@@ -447,6 +518,16 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
             // 调用 SwiftTerm 的 applyTheme 方法
             terminal.applyTheme(theme: terminalTheme)
             
+            // 稍微延迟同步容器背景色，确保终端视图背景色已更新
+            DispatchQueue.main.async {
+                print("主题应用后: 即将同步容器背景色")
+                self.syncContainerBackgroundColor()
+                
+                // 强制刷新容器视图
+                self.containerView.needsDisplay = true
+                print("主题应用后: 容器背景色同步完成")
+            }
+            
             print("主题已应用: \(themeName)")
         } else {
             print("未找到名为 \(themeName) 的主题")
@@ -475,7 +556,18 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         var newFrame = terminal.getOptimalFrameSize()
         let windowFrame = view.window!.frame
         
-        newFrame = CGRect(x: windowFrame.minX, y: windowFrame.minY, width: newFrame.width, height: windowFrame.height - view.frame.height + newFrame.height)
+        // 考虑容器视图的边距
+        let insets = NSEdgeInsets(top: 8, left: 8, bottom: 8, right: 8) // 使用创建容器时的边距
+        let extraWidth = insets.left + insets.right
+        let extraHeight = insets.top + insets.bottom
+        
+        // 调整窗口大小，考虑容器边距
+        newFrame = CGRect(
+            x: windowFrame.minX, 
+            y: windowFrame.minY, 
+            width: newFrame.width + extraWidth, 
+            height: windowFrame.height - view.frame.height + newFrame.height + extraHeight
+        )
 
         view.window?.setFrame(newFrame, display: true, animate: true)
         changingSize = false
@@ -519,6 +611,18 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
             print("Process terminated with code: \(e)")
         } else {
             print("Process vanished")
+        }
+    }
+
+    // 添加透明背景切换功能
+    @objc @IBAction
+    func toggleTransparentBackground(_ sender: AnyObject) {
+        transparent.toggle()
+        syncContainerBackgroundColor()
+        
+        // 更新菜单项状态
+        if let menuItem = sender as? NSMenuItem {
+            menuItem.state = transparent ? .on : .off
         }
     }
 }
