@@ -41,8 +41,8 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
     func makeContainerFrame(keyboardDelta: CGFloat) -> CGRect {
         let frame = makeFrame(keyboardDelta: keyboardDelta)
         
-        // 如果使用了容器视图且找到了它，需要确保容器尺寸正确
-        if let containerView = view.subviews.first(where: { $0 is TerminalContainerView }) {
+        // 检查是否使用了容器视图
+        if view.subviews.first(where: { $0 is TerminalContainerView }) != nil {
             return frame
         }
         
@@ -91,7 +91,7 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
         let keyboardViewEndFrame = view.convert(keyboardScreenEndFrame, from: view.window)
         keyboardDelta = keyboardViewEndFrame.height
         
-        if let containerView = view.subviews.first(where: { $0 is TerminalContainerView }) {
+        if view.subviews.first(where: { $0 is TerminalContainerView }) != nil {
             // 使用配置器调整容器框架
             configurator.setFrame(makeFrame(keyboardDelta: keyboardViewEndFrame.height))
         } else {
@@ -103,7 +103,7 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
     @objc private func keyboardWillHide(_ notification: NSNotification) {
         keyboardDelta = 0
         
-        if let _ = view.subviews.first(where: { $0 is TerminalContainerView }) {
+        if view.subviews.first(where: { $0 is TerminalContainerView }) != nil {
             // 使用配置器调整容器框架
             configurator.setFrame(makeFrame(keyboardDelta: 0))
         } else {
@@ -282,10 +282,6 @@ class ViewController: UIViewController, ObservableObject, TerminalViewDelegate, 
                 // 完成后，再次刷新以确保内容正确显示
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     print("字体大小变更后，再次刷新终端显示")
-                    
-                    // 获取当前视图尺寸
-                    let viewWidth = self.view.bounds.width - self.view.safeAreaInsets.left - self.view.safeAreaInsets.right
-                    let viewHeight = self.view.bounds.height - self.view.safeAreaInsets.top - self.keyboardDelta
                     
                     // 在容器视图或终端视图上强制刷新
                     if let containerView = self.view.subviews.first(where: { $0 is TerminalContainerView }) {
