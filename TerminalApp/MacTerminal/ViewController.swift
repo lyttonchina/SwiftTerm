@@ -89,7 +89,6 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         terminal = LocalProcessTerminalView(frame: view.frame)
         ViewController.lastTerminal = terminal
         terminal.processDelegate = self
-        terminal.feed(text: "Welcome to SwiftTerm")
         
         // 启用主题切换优化
         TerminalView.enableThemeSwitchImprovement()
@@ -120,6 +119,7 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         // 强制刷新
         containerView.needsDisplay = true
         
+        // 恢复启动shell的代码
         let shell = getShell()
         let shellIdiom = "-" + NSString(string: shell).lastPathComponent
         
@@ -623,6 +623,25 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         // 更新菜单项状态
         if let menuItem = sender as? NSMenuItem {
             menuItem.state = transparent ? .on : .off
+        }
+    }
+
+    // 这个函数创建一个临时的shell配置文件，用于隐藏提示符
+    func createNoPromptShellConfig() -> String {
+        let tempDir = FileManager.default.temporaryDirectory
+        let configPath = tempDir.appendingPathComponent("no_prompt_config.sh")
+        
+        let configContent = """
+        # 隐藏提示符的配置
+        export PS1=""
+        """
+        
+        do {
+            try configContent.write(to: configPath, atomically: true, encoding: .utf8)
+            return configPath.path
+        } catch {
+            print("无法创建shell配置文件: \(error)")
+            return ""
         }
     }
 }
