@@ -30,7 +30,7 @@ struct RunningTerminalConfig: View {
             viewController.applyTheme(themeName: style)
             
             // 更新字体和字体大小（即使它们可能已经在预览中更新）
-            viewController.changeFontSmoothly(fontName, size: fontSize)
+            viewController.changeFont(fontName, size: fontSize)
         }
     }
 

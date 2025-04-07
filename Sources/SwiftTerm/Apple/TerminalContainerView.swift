@@ -34,10 +34,23 @@ public class TerminalContainerView: TTView {
         set { 
             _backgroundColor = newValue
             // 确保背景色变更时更新layer
+            if self.layer == nil {
+                self.wantsLayer = true
+            }
             self.layer?.backgroundColor = newValue.cgColor
             self.needsDisplay = true
             print("TerminalContainerView: 背景色已设置为 \(newValue)")
         }
+    }
+    
+    /// 直接设置背景色而不打印日志，用于避免主题切换时的闪烁
+    public func setBackgroundColorSilently(_ color: NSColor) {
+        _backgroundColor = color
+        if self.layer == nil {
+            self.wantsLayer = true
+        }
+        self.layer?.backgroundColor = color.cgColor
+        self.needsDisplay = true
     }
     
     public override var wantsUpdateLayer: Bool {
@@ -47,6 +60,9 @@ public class TerminalContainerView: TTView {
     public override func updateLayer() {
         super.updateLayer()
         print("TerminalContainerView.updateLayer: 设置layer背景色为 \(_backgroundColor)")
+        if self.layer == nil {
+            self.wantsLayer = true
+        }
         layer?.backgroundColor = _backgroundColor.cgColor
     }
     
@@ -128,12 +144,55 @@ public class TerminalContainerView: TTView {
         #else
         // macOS版本获取终端背景色
         let bgColor = terminalView.nativeBackgroundColor
-        self.backgroundColor = bgColor
-        print("macOS终端容器: 同步背景色为 \(bgColor)")
         
-        // 确保layer背景色也正确设置
-        self.layer?.backgroundColor = bgColor.cgColor
+        // 确保使用统一的颜色空间进行转换
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        bgColor.getRed(&r, green: &g, blue: &b, alpha: &a)
+        
+        let convertedColor = NSColor(srgbRed: r, green: g, blue: b, alpha: a)
+        self.backgroundColor = convertedColor
+        print("macOS终端容器: 同步背景色，原始色为 \(bgColor)，转换后为 \(convertedColor)")
+        
+        // 确保layer存在并设置背景色
+        if self.layer == nil {
+            self.wantsLayer = true
+        }
+        self.layer?.backgroundColor = convertedColor.cgColor
+        
+        // 强制重绘
         self.needsDisplay = true
+        
+        // 强制更新该层
+        self.forceUpdate()
+        #endif
+    }
+    
+    /// 强制更新视图显示
+    public func forceUpdate() {
+        #if os(iOS) || os(visionOS)
+        self.setNeedsDisplay()
+        #else
+        // 确保窗口和视图存在
+        guard let window = self.window else {
+            return
+        }
+        
+        // 标记为需要显示
+        self.needsDisplay = true
+        
+        // 立即更新
+        window.displayIfNeeded()
+        
+        // 强制视图刷新
+        if let layer = self.layer {
+            layer.setNeedsDisplay()
+            layer.displayIfNeeded()
+        }
+        
+        // 如果有分层，递归更新子视图
+        for subview in self.subviews {
+            subview.needsDisplay = true
+        }
         #endif
     }
     

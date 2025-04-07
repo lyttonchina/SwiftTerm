@@ -1457,7 +1457,22 @@ extension TerminalView {
     /// - Parameter insets: The insets to apply around the terminal (default is 8pt on all sides)
     /// - Returns: A container view that wraps this terminal view
     public func withContainer(insets: NSEdgeInsets = NSEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)) -> TerminalContainerView {
-        return TerminalContainerView(terminalView: self, insets: insets)
+        let container = TerminalContainerView(terminalView: self, insets: insets)
+        
+        // 特别关键：首先强制终端视图背景层初始化和设置
+        if self.layer == nil {
+            self.wantsLayer = true
+        }
+        self.layer?.backgroundColor = nativeBackgroundColor.cgColor
+        
+        // 直接设置容器背景色为相同的颜色，使用相同的CGColor来避免颜色空间问题
+        if container.layer == nil {
+            container.wantsLayer = true
+        }
+        container.layer?.backgroundColor = self.layer?.backgroundColor
+        container.setBackgroundColorSilently(nativeBackgroundColor)
+        
+        return container
     }
 }
 

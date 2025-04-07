@@ -147,6 +147,8 @@ class Settings: ObservableObject {
     
     // 更新所有终端窗口的主题
     func updateAllTerminalsTheme() {
+        print("Settings.updateAllTerminalsTheme() - 正在发送主题变更通知，主题名称: \(themeName)")
+        
         // 通过通知中心发送主题更改通知
         NotificationCenter.default.post(
             name: Notification.Name("ThemeChanged"),
@@ -157,14 +159,24 @@ class Settings: ObservableObject {
         // 尝试获取主窗口的ViewController并应用主题
         if let mainWindow = NSApplication.shared.mainWindow,
            let viewController = mainWindow.contentViewController as? ViewController {
+            print("找到主窗口的ViewController，直接应用主题")
             viewController.applyTheme(themeName: themeName)
+        } else {
+            print("未找到主窗口的ViewController")
         }
         
         // 获取所有窗口并尝试应用主题
+        var appliedToAnyWindow = false
         for window in NSApplication.shared.windows {
             if let viewController = window.contentViewController as? ViewController {
+                print("正在应用主题到窗口: \(window)")
                 viewController.applyTheme(themeName: themeName)
+                appliedToAnyWindow = true
             }
+        }
+        
+        if !appliedToAnyWindow {
+            print("警告: 未找到任何窗口的ViewController来应用主题")
         }
     }
 }
@@ -238,7 +250,7 @@ struct FontSize: View {
                 self.currentSize = self.size
                 // 实时预览字体大小
                 if let viewController = NSApplication.shared.mainWindow?.contentViewController as? ViewController {
-                    viewController.changeFontSizeSmoothly(self.size == 0 ? NSFont.systemFontSize : self.size)
+                    viewController.changeFontSize(self.size == 0 ? NSFont.systemFontSize : self.size)
                 }
             }
     }

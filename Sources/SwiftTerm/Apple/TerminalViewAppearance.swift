@@ -109,50 +109,65 @@ extension TerminalView {
     /// 更新容器视图的背景色
     private func updateContainerBackgroundColor() {
         print("TerminalView: 尝试更新容器背景色")
+        
+        // 同步查找容器视图并设置背景色
+        #if os(iOS) || os(visionOS)
+        if let containerView = self.superview as? TerminalContainerView {
+            // 确保使用一致的颜色格式
+            if let bgColor = self.backgroundColor {
+                var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+                if bgColor.getRed(&r, green: &g, blue: &b, alpha: &a) {
+                    let convertedColor = UIColor(red: r, green: g, blue: b, alpha: a)
+                    containerView.backgroundColor = convertedColor
+                    print("TerminalView: 同步设置容器背景色为 \(convertedColor)")
+                } else {
+                    containerView.backgroundColor = bgColor
+                }
+            }
+        }
+        #elseif os(macOS)
+        if let containerView = self.superview as? TerminalContainerView {
+            // 确保终端视图的layer已经初始化
+            if self.layer == nil {
+                self.wantsLayer = true
+                self.layer?.backgroundColor = self.nativeBackgroundColor.cgColor
+            }
+            
+            // 确保容器视图的layer已经初始化
+            if containerView.layer == nil {
+                containerView.wantsLayer = true
+            }
+            
+            // 直接使用相同的CGColor赋值
+            containerView.layer?.backgroundColor = self.layer?.backgroundColor
+            containerView.setBackgroundColorSilently(self.nativeBackgroundColor)
+            containerView.needsDisplay = true
+            
+            // 如果有窗口，请求立即更新
+            if let window = containerView.window {
+                window.viewsNeedDisplay = true
+                window.displayIfNeeded()
+            }
+            
+            print("TerminalView: 同步设置macOS容器背景色")
+        }
+        #endif
+        
+        // 异步再次检查确保更新
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
-            // 直接检查我们是否在容器视图内部
             #if os(iOS) || os(visionOS)
-            if let containerView = self.superview as? TerminalContainerView {
-                // 直接设置容器背景色
-                print("TerminalView: 直接父视图是容器，当前背景色: \(self.backgroundColor)")
-                containerView.backgroundColor = self.backgroundColor
-                print("TerminalView: 设置容器背景色完成: \(containerView.backgroundColor)")
-            } else if let superview = self.superview {
-                // 如果直接父视图不是容器，检查所有祖先视图
-                print("TerminalView: 直接父视图不是容器，开始搜索祖先视图")
-                var currentView: UIView? = superview
-                while currentView != nil {
-                    if let containerView = currentView as? TerminalContainerView {
-                        print("TerminalView: 找到祖先容器视图，当前背景色: \(self.backgroundColor)")
-                        containerView.backgroundColor = self.backgroundColor
-                        print("TerminalView: 设置祖先容器背景色完成: \(containerView.backgroundColor)")
-                        break
-                    }
-                    currentView = currentView?.superview
-                }
-                
-                if currentView == nil {
-                    print("TerminalView: 在视图层次中没有找到容器视图")
-                }
-            } else {
-                print("TerminalView: 没有父视图")
+            if let containerView = self.superview as? TerminalContainerView,
+               let bgColor = self.backgroundColor {
+                containerView.backgroundColor = bgColor
+                print("TerminalView: 异步设置容器背景色完成")
             }
             #elseif os(macOS)
             if let containerView = self.superview as? TerminalContainerView {
-                // 直接设置容器背景色
                 containerView.layer?.backgroundColor = self.layer?.backgroundColor
-            } else if let superview = self.superview {
-                // 如果直接父视图不是容器，检查所有祖先视图
-                var currentView: NSView? = superview
-                while currentView != nil {
-                    if let containerView = currentView as? TerminalContainerView {
-                        containerView.layer?.backgroundColor = self.layer?.backgroundColor
-                        break
-                    }
-                    currentView = currentView?.superview
-                }
+                containerView.needsDisplay = true
+                print("TerminalView: 异步设置macOS容器背景色完成")
             }
             #endif
         }

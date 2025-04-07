@@ -1465,7 +1465,19 @@ extension TerminalView {
     /// - Parameter insets: The insets to apply around the terminal (default is 8pt on all sides)
     /// - Returns: A container view that wraps this terminal view
     public func withContainer(insets: EdgeInsets = EdgeInsets(top: 8, left: 8, bottom: 8, right: 8)) -> TerminalContainerView {
-        return TerminalContainerView(terminalView: self, insets: insets)
+        let container = TerminalContainerView(terminalView: self, insets: insets)
+        
+        // 设置初始背景色，使用扩展方法以保持颜色空间一致
+        if let bgColor = self.backgroundColor ?? self.nativeBackgroundColor {
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            if bgColor.getRed(&r, green: &g, blue: &b, alpha: &a) {
+                container.backgroundColor = UIColor(red: r, green: g, blue: b, alpha: a)
+            } else {
+                container.backgroundColor = bgColor
+            }
+        }
+        
+        return container
     }
 }
 

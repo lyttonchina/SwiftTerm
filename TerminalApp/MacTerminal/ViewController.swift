@@ -17,7 +17,7 @@ import IOKit
 // 为SwiftTerm.TerminalView.TerminalThemeColor提供一个类型别名（如果需要的话）
 // typealias TerminalThemeColor = SwiftTerm.TerminalView.TerminalThemeColor
 
-class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWindowDelegate, ObservableObject {
+class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWindowDelegate, TerminalViewDelegate, ObservableObject {
     @IBOutlet var loggingMenuItem: NSMenuItem?
 
     // 追踪菜单是否已被设置
@@ -30,8 +30,10 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
     
     // 终端进程
     var terminal: LocalProcessTerminalView!
-    // 终端容器视图
-    var containerView: TerminalContainerView!
+    // 终端配置器
+    var configurator: TerminalConfigurator!
+    // 终端代理链
+    var delegateChain: TerminalDelegateChain!
     // 是否使用透明背景
     var transparent: Bool = false
 
@@ -85,19 +87,32 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         super.viewDidLoad()
         test ()
         
+        // 确保TerminalThemeManager知道所有设置中定义的主题
+        initializeThemeManager()
+        
+        // 打印所有可用主题，确认主题已注册
+        let allThemes = TerminalThemeManager.shared.getAllThemes()
+        print("应用启动时可用主题: \(allThemes.map { $0.name }.joined(separator: ", "))")
+        
         // 创建终端视图
         terminal = LocalProcessTerminalView(frame: view.frame)
         ViewController.lastTerminal = terminal
-        terminal.processDelegate = self
         
-        // 启用主题切换优化
-        TerminalView.enableThemeSwitchImprovement()
+        // 设置多代理支持
+        delegateChain = terminal.useMultipleDelegates()
+        delegateChain.add(delegate: self)
+        
+        // 设置配置器
+        configurator = terminal.configure()
+        
+        // 设置进程代理
+        terminal.processDelegate = self
         
         // 设置设置菜单
         setupSettingsMenu()
         
-        // 创建容器视图包装终端，提供边距
-        containerView = terminal.withContainer(insets: NSEdgeInsets(top: 8, left: 8, bottom: 8, right: 8))
+        // 确保能访问容器视图
+        let containerView = configurator.containerView
         
         // 设置容器视图的背景色
         if !transparent {
@@ -106,7 +121,7 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
             print("初始化: 容器背景色同步完成")
         } else {
             print("初始化: 设置透明背景")
-            containerView.backgroundColor = NSColor.clear
+            configurator.enableTransparentBackground(true)
         }
         
         // 添加容器视图而不是直接添加终端视图
@@ -119,7 +134,7 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         // 强制刷新
         containerView.needsDisplay = true
         
-        // 恢复启动shell的代码
+        // 启动shell
         let shell = getShell()
         let shellIdiom = "-" + NSString(string: shell).lastPathComponent
         
@@ -156,28 +171,6 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         settingsView.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
         settingsView.isHidden = true
         self.view.addSubview(settingsView)
-        
-        // 同步容器背景色
-        syncContainerBackgroundColor()
-    }
-    
-    // 同步容器背景色
-    func syncContainerBackgroundColor() {
-        if !transparent {
-            print("VC.syncContainerBackgroundColor: 终端当前背景色为 \(terminal.nativeBackgroundColor)")
-            containerView.syncBackgroundColor()
-            
-            // 确保同步后强制刷新
-            containerView.layer?.backgroundColor = containerView.backgroundColor.cgColor
-            containerView.needsDisplay = true
-            
-            print("VC.syncContainerBackgroundColor: 同步后容器背景色为 \(containerView.backgroundColor)")
-        } else {
-            containerView.backgroundColor = NSColor.clear
-            containerView.layer?.backgroundColor = NSColor.clear.cgColor
-            containerView.needsDisplay = true
-            print("VC.syncContainerBackgroundColor: 设置容器为透明背景")
-        }
     }
     
     @objc func handleThemeChange(_ notification: Notification) {
@@ -185,10 +178,20 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
            let themeName = userInfo["themeName"] as? String {
             print("收到主题变更通知: \(themeName)")
             
-            // 应用主题
-            applyTheme(themeName: themeName)
+            // 打印更多调试信息
+            print("当前ViewController: \(self)")
+            print("当前terminal: \(String(describing: terminal))")
+            print("当前configurator: \(String(describing: configurator))")
             
-            // 主题变更后在稍后同步容器背景色 (已在applyTheme内部处理)
+            // 应用主题
+            if let theme = TerminalThemeManager.shared.getTheme(named: themeName) {
+                print("找到主题: \(themeName), 准备应用")
+                applyTheme(themeName: themeName)
+            } else {
+                print("错误: 未找到名为 \(themeName) 的主题")
+            }
+        } else {
+            print("错误: 收到的主题变更通知不包含themeName")
         }
     }
     
@@ -205,9 +208,9 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         super.viewDidLayout()
         changingSize = true
         // 调整容器视图而不是直接调整终端视图
-        containerView.frame = view.frame
+        configurator.containerView.frame = view.frame
         changingSize = false
-        containerView.needsLayout = true
+        configurator.containerView.needsLayout = true
     }
 
 
@@ -472,6 +475,35 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         }
     }
     
+    // 初始化主题管理器，使其包含设置文件中定义的所有主题
+    private func initializeThemeManager() {
+        print("正在初始化TerminalThemeManager，添加SettingsViewMacOs.swift中定义的主题")
+        
+        // 将SettingsViewMacOs.swift中定义的主题添加到TerminalThemeManager
+        for localTheme in themes {
+            print("准备注册主题到TerminalThemeManager: \(localTheme.name)")
+            
+            // 创建SwiftTerm.ThemeColor实例
+            // 注意：由于命名空间冲突，我们需要明确指定SwiftTerm.ThemeColor
+            let swiftTermTheme = SwiftTerm.ThemeColor(
+                name: localTheme.name,
+                ansi: localTheme.ansi,
+                background: localTheme.background,
+                foreground: localTheme.foreground,
+                cursor: localTheme.cursor,
+                cursorText: localTheme.cursorText,
+                selectedText: localTheme.selectedText,
+                selectionColor: localTheme.selectionColor
+            )
+            
+            // 注册到TerminalThemeManager
+            TerminalThemeManager.shared.registerTheme(swiftTermTheme)
+        }
+        
+        // 打印所有已注册的主题，确认注册成功
+        print("TerminalThemeManager现在包含的主题: \(TerminalThemeManager.shared.getAllThemes().map { $0.name }.joined(separator: ", "))")
+    }
+    
     // 添加 showingSettings 状态变量
     @Published var showingSettings = false
     
@@ -480,97 +512,45 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         self.showingSettings = true
     }
     
-    // 平滑更改字体大小而不清屏
-    func changeFontSizeSmoothly(_ size: CGFloat) {
-        print("开始更改字体大小到: \(size)pt")
-        
-        // 使用SwiftTerm提供的方法
-        terminal.changeFontSizeSmoothly(size)
-        
-        print("字体大小更改完成：\(size)pt")
+    // 平滑更改字体大小
+    func changeFontSize(_ size: CGFloat) {
+        configurator.applyFont(name: "", size: size)
     }
     
     // 平滑更改字体
-    func changeFontSmoothly(_ fontName: String, size: CGFloat = 0) {
-        print("开始更改字体到: \(fontName), 大小: \(size)pt")
-        
-        // 使用SwiftTerm提供的方法
-        terminal.changeFontSmoothly(fontName: fontName, size: size)
-        
-        print("字体更改完成：\(fontName), \(size)pt")
+    func changeFont(_ fontName: String, size: CGFloat = 0) {
+        configurator.applyFont(name: fontName, size: size)
     }
 
     // 应用自定义主题
     func applyTheme(themeName: String) {
-        if let theme = themes.first(where: { $0.name == themeName }) {
-            print("应用主题: \(themeName)")
+        print("开始应用主题: \(themeName)")
+        if let theme = TerminalThemeManager.shared.getTheme(named: themeName) {
+            print("应用主题: \(themeName), Theme对象: \(theme)")
             
-            // 创建用于TerminalView的ThemeColor
-            let terminalTheme = TerminalView.TerminalThemeColor(
-                ansiColors: theme.ansi,
-                foreground: theme.foreground, 
-                background: theme.background,
-                cursor: theme.cursor,
-                selectionColor: theme.selectionColor,
-                isLight: isLightColor(theme.background)
-            )
-            
-            // 调用 SwiftTerm 的 applyTheme 方法
-            terminal.applyTheme(theme: terminalTheme)
-            
-            // 稍微延迟同步容器背景色，确保终端视图背景色已更新
-            DispatchQueue.main.async {
-                print("主题应用后: 即将同步容器背景色")
-                self.syncContainerBackgroundColor()
-                
-                // 强制刷新容器视图
-                self.containerView.needsDisplay = true
-                print("主题应用后: 容器背景色同步完成")
+            // 检查configurator是否有效
+            if configurator != nil {
+                print("configurator有效，调用configurator.applyTheme")
+                configurator.applyTheme(theme)
+            } else {
+                print("错误: configurator为nil")
             }
-            
-            print("主题已应用: \(themeName)")
         } else {
             print("未找到名为 \(themeName) 的主题")
+            
+            // 打印所有可用主题
+            let allThemes = TerminalThemeManager.shared.getAllThemes()
+            print("可用主题: \(allThemes.map { $0.name }.joined(separator: ", "))")
         }
-    }
-    
-    // 判断一个颜色是否为亮色
-    private func isLightColor(_ color: SwiftTerm.Color) -> Bool {
-        let r = Double(color.red) / 65535.0
-        let g = Double(color.green) / 65535.0
-        let b = Double(color.blue) / 65535.0
-        let brightness = r * 0.299 + g * 0.587 + b * 0.114
-        return brightness > 0.5
     }
     
     // 处理终端大小变化
-    func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {
-        print("sizeChanged: \(newCols) \(newRows)")
-        
-        // 如果终端正在更改字体大小，不调整窗口大小
-        if terminal.isFontSizeChanging() {
-            return
+    public func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
+        print("TerminalViewDelegate.sizeChanged: \(newCols) \(newRows)")
+        if let localSource = source as? LocalProcessTerminalView {
+            // Forward to our LocalProcessTerminalViewDelegate implementation
+            sizeChanged(source: localSource, newCols: newCols, newRows: newRows)
         }
-        
-        changingSize = true
-        var newFrame = terminal.getOptimalFrameSize()
-        let windowFrame = view.window!.frame
-        
-        // 考虑容器视图的边距
-        let insets = NSEdgeInsets(top: 8, left: 8, bottom: 8, right: 8) // 使用创建容器时的边距
-        let extraWidth = insets.left + insets.right
-        let extraHeight = insets.top + insets.bottom
-        
-        // 调整窗口大小，考虑容器边距
-        newFrame = CGRect(
-            x: windowFrame.minX, 
-            y: windowFrame.minY, 
-            width: newFrame.width + extraWidth, 
-            height: windowFrame.height - view.frame.height + newFrame.height + extraHeight
-        )
-
-        view.window?.setFrame(newFrame, display: true, animate: true)
-        changingSize = false
     }
     
     // 更新窗口标题
@@ -593,32 +573,25 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
     }
     
     // 设置终端标题
-    func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
-        postedTitle = title
-        updateWindowTitle()
-    }
-    
-    // 主机当前目录更新
-    func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {
-        self.postedDirectory = directory
-        updateWindowTitle()
-    }
-    
-    // 进程终止处理
-    func processTerminated(source: TerminalView, exitCode: Int32?) {
-        view.window?.close()
-        if let e = exitCode {
-            print("Process terminated with code: \(e)")
+    public func setTerminalTitle(source: TerminalView, title: String) {
+        print("TerminalViewDelegate.setTerminalTitle: \(title)")
+        if let localSource = source as? LocalProcessTerminalView {
+            // Forward to our LocalProcessTerminalViewDelegate implementation
+            setTerminalTitle(source: localSource, title: title)
         } else {
-            print("Process vanished")
+            // Handle non-LocalProcessTerminalView sources
+            postedTitle = title
+            updateWindowTitle()
         }
-    }
+    }    
+    
 
-    // 添加透明背景切换功能
+
+    // 透明背景切换功能
     @objc @IBAction
     func toggleTransparentBackground(_ sender: AnyObject) {
         transparent.toggle()
-        syncContainerBackgroundColor()
+        configurator.enableTransparentBackground(transparent)
         
         // 更新菜单项状态
         if let menuItem = sender as? NSMenuItem {
@@ -642,6 +615,97 @@ class ViewController: NSViewController, LocalProcessTerminalViewDelegate, NSWind
         } catch {
             print("无法创建shell配置文件: \(error)")
             return ""
+        }
+    }
+
+    // MARK: - TerminalViewDelegate Methods
+    
+    public func scrolled(source: TerminalView, position: Double) {
+        // Handle scrolling if needed
+    }
+    
+    public func send(source: TerminalView, data: ArraySlice<UInt8>) {
+        // In our case, LocalProcessTerminalView handles this already
+    }
+    
+    public func clipboardCopy(source: TerminalView, content: Data) {
+        if let str = String(bytes: content, encoding: .utf8) {
+            let pasteBoard = NSPasteboard.general
+            pasteBoard.clearContents()
+            pasteBoard.writeObjects([str as NSString])
+        }
+    }
+    
+    public func rangeChanged(source: TerminalView, startY: Int, endY: Int) {
+        // Handle range changes if needed
+    }
+    
+    public func requestOpenLink(source: TerminalView, link: String, params: [String : String]) {
+        if let fixedup = link.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            if let url = NSURLComponents(string: fixedup) {
+                if let nested = url.url {
+                    NSWorkspace.shared.open(nested)
+                }
+            }
+        }
+    }
+    
+    public func bell(source: TerminalView) {
+        NSSound.beep()
+    }
+    
+    public func iTermContent(source: TerminalView, content: ArraySlice<UInt8>) {
+        // Handle iTerm content if needed
+    }
+
+    // MARK: - LocalProcessTerminalViewDelegate Methods
+    
+    // LocalProcessTerminalViewDelegate method implementations with exact signatures
+    func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {
+        print("LocalProcessTerminalViewDelegate.sizeChanged: \(newCols) \(newRows)")
+        
+        // Only adjust window size if not changing font and window exists
+        if !terminal.isFontSizeChanging() && !changingSize && view.window != nil {
+            changingSize = true
+            var newFrame = terminal.getOptimalFrameSize()
+            let windowFrame = view.window!.frame
+            
+            // Consider container view margins
+            let insets = NSEdgeInsets(top: 8, left: 8, bottom: 8, right: 8) 
+            let extraWidth = insets.left + insets.right
+            let extraHeight = insets.top + insets.bottom
+            
+            // Adjust window size, considering container margins
+            newFrame = CGRect(
+                x: windowFrame.minX, 
+                y: windowFrame.minY, 
+                width: newFrame.width + extraWidth, 
+                height: windowFrame.height - view.frame.height + newFrame.height + extraHeight
+            )
+
+            view.window?.setFrame(newFrame, display: true, animate: true)
+            changingSize = false
+        }
+    }
+    
+    func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
+        postedTitle = title
+        updateWindowTitle()
+    }
+    
+    // Common method to both protocols with same signature - only define once
+    func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {
+        self.postedDirectory = directory
+        updateWindowTitle()
+    }
+    
+    // Common method to both protocols with same signature - only define once
+    func processTerminated(source: TerminalView, exitCode: Int32?) {
+        view.window?.close()
+        if let e = exitCode {
+            print("Process terminated with code: \(e)")
+        } else {
+            print("Process vanished")
         }
     }
 }
