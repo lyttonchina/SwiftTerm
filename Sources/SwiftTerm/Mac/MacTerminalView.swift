@@ -209,7 +209,8 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     /// This controls whether the backspace should send ^? or ^H, the default is ^?
     public var backspaceSendsControlH: Bool = false
     
-    var _nativeFg, _nativeBg: TTColor!
+    var _nativeFg: TTColor = NSColor.textColor
+    var _nativeBg: TTColor = NSColor.textBackgroundColor
     var settingFg = false, settingBg = false
     /**
      * This will set the native foreground color to the specified native color (UIColor or NSColor)
@@ -300,21 +301,102 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         }
     }
     
-    
+    // 添加一个自定义的NSScroller子类，用完全自定义的绘制方法
+    class CustomScroller: NSScroller {
+        // 缓存滚动条和滑块的尺寸
+        private var trackWidth: CGFloat = 0
+        private var knobWidth: CGFloat = 0
+        
+        override func draw(_ dirtyRect: NSRect) {
+            guard let context = NSGraphicsContext.current?.cgContext else { return }
+            
+            // 清除背景
+            context.clear(dirtyRect)
+            
+            // 设置滚动条轨道的宽度(比控件本身略窄)
+            trackWidth = bounds.width * 0.9
+            
+            // 绘制滚动轨道（圆角矩形）
+            let trackRect = NSRect(
+                x: (bounds.width - trackWidth) / 2,
+                y: 0,
+                width: trackWidth,
+                height: bounds.height
+            )
+            
+            let trackPath = NSBezierPath(roundedRect: trackRect, xRadius: trackWidth/2, yRadius: trackWidth/2)
+            NSColor.lightGray.withAlphaComponent(0.3).setFill()
+            trackPath.fill()
+            
+            // 如果允许滚动并且有内容可滚动
+            if isEnabled {
+                // 计算滑块宽度(比轨道再窄一些)
+                knobWidth = trackWidth * 0.7
+                
+                // 计算滑块的垂直范围
+                let knobMinY = 0.0
+                let knobMaxY = bounds.height - (bounds.height * CGFloat(knobProportion))
+                
+                // 根据当前滚动位置计算滑块的Y坐标
+                let knobY = knobMinY + (knobMaxY - knobMinY) * CGFloat(doubleValue)
+                
+                // 计算滑块矩形，确保水平居中
+                let knobRect = NSRect(
+                    x: (bounds.width - knobWidth) / 2, // 水平居中
+                    y: knobY,
+                    width: knobWidth,
+                    height: bounds.height * CGFloat(knobProportion)
+                )
+                
+                // 绘制滑块（圆角矩形）
+                let knobPath = NSBezierPath(roundedRect: knobRect, xRadius: knobWidth/2, yRadius: knobWidth/2)
+                NSColor.gray.withAlphaComponent(0.7).setFill()
+                knobPath.fill()
+            }
+        }
+        
+        // 重写鼠标点击处理，以确保我们的自定义滚动条正常工作
+        override func mouseDown(with event: NSEvent) {
+            if !isEnabled { return }
+            
+            let point = convert(event.locationInWindow, from: nil)
+            let trackRect = NSRect(
+                x: (bounds.width - trackWidth) / 2,
+                y: 0,
+                width: trackWidth,
+                height: bounds.height
+            )
+            
+            // 检查点击是否在滚动轨道上
+            if trackRect.contains(point) {
+                // 计算点击位置相对于可滚动区域的比例
+                let relativePosition = point.y / bounds.height
+                doubleValue = Double(relativePosition)
+                
+                // 调用action方法
+                if let action = action, let target = target {
+                    NSApp.sendAction(action, to: target, from: self)
+                }
+            }
+        }
+    }
+
     func setupScroller()
     {
         if scroller != nil {
             scroller.removeFromSuperview()
         }
 
-        let style: NSScroller.Style = .legacy
-        let scrollerWidth = NSScroller.scrollerWidth(for: .regular, scrollerStyle: style)
-        scroller = NSScroller(frame: NSRect(x: bounds.maxX - scrollerWidth, y: 0, width: scrollerWidth, height: bounds.height))
+        // 进一步减小滚动条宽度，取原来宽度的60%
+        let scrollerWidth = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy) * 0.6
+        
+        // 使用完全自定义的滚动条类
+        scroller = CustomScroller(frame: NSRect(x: bounds.maxX - scrollerWidth, y: 0, width: scrollerWidth, height: bounds.height))
         scroller.autoresizingMask = [.minXMargin, .height]
-        scroller.scrollerStyle = style
         scroller.knobProportion = 0.1
         scroller.isEnabled = false
-        addSubview (scroller)
+        
+        addSubview(scroller)
         scroller.action = #selector(scrollerActivated)
         scroller.target = self
     }
@@ -380,6 +462,8 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         scroller.isEnabled = canScroll
         scroller.doubleValue = scrollPosition
         scroller.knobProportion = scrollThumbsize
+        // 强制重绘滚动条
+        scroller.needsDisplay = true
     }
     
     var userScrolling = false
