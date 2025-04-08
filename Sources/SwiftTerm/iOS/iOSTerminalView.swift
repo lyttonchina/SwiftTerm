@@ -182,6 +182,9 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     // Used for the keyboard long-press gesture that works as a cursor
     var lastFloatingCursorLocation: CGPoint?
     
+    // 添加一个标志来控制是否抑制刷新操作
+    var suppressRefresh: Bool = false
+    
     var fontSet: FontSet
     
     /// The font to use to render the terminal, this attempts to derive the bold, italic and italic/bold variants from
@@ -192,10 +195,50 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
             return fontSet.normal
         }
         set {
-            fontSet = FontSet (font: newValue)
-            resetFont()
-            selectNone()
+            updateFont(newFont: newValue)
         }
+    }
+    
+    /// 更新字体而不清空所有缓存
+    public func updateFont(newFont: UIFont) {
+        // 设置标志，禁止刷新
+        suppressRefresh = true
+        
+        // 保存颜色缓存
+        let savedColors = colors
+        let savedTrueColors = trueColors
+        
+        // 更新fontSet
+        fontSet = FontSet(font: newFont)
+        self.cellDimension = computeFontDimensions()
+        
+        // 只清除字体相关的缓存
+        self.attributes = [:]
+        self.urlAttributes = [:]
+        
+        // 恢复颜色缓存
+        self.colors = savedColors
+        self.trueColors = savedTrueColors
+        
+        // 检查是否需要调整终端大小
+        let newCols = Int(frame.width / cellDimension.width)
+        let newRows = Int(frame.height / cellDimension.height)
+        
+        // 只有在尺寸发生变化时才重新调整大小
+        if newCols != terminal.cols || newRows != terminal.rows {
+            resize(cols: newCols, rows: newRows)
+        }
+        
+        updateCaretView()
+        
+        // 重置标志，恢复刷新
+        suppressRefresh = false
+        
+        // 现在一次性更新屏幕
+        terminal.updateFullScreen()
+        queuePendingDisplay()
+        
+        selectNone()
     }
     
     /// Sets the various fonts to be used by the terminal to render text, their size is ignored
@@ -205,9 +248,45 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     ///  - italic: The font used for italic text
     ///  - boldItalic: The font used for text that is both bold and italic.
     public func setFonts (normal: UIFont, bold: UIFont, italic: UIFont, boldItalic: UIFont) {
+        // 设置标志，禁止刷新
+        suppressRefresh = true
+        
+        // 保存颜色缓存
+        let savedColors = colors
+        let savedTrueColors = trueColors
+        
         fontSet = FontSet (normal: normal, bold: bold, italic: italic, boldItalic: boldItalic)
-        resetFont ()
-        selectNone ()
+        
+        // 更新单元格尺寸
+        self.cellDimension = computeFontDimensions()
+        
+        // 只清除字体相关的缓存
+        self.attributes = [:]
+        self.urlAttributes = [:]
+        
+        // 恢复颜色缓存
+        self.colors = savedColors
+        self.trueColors = savedTrueColors
+        
+        // 检查是否需要调整终端大小
+        let newCols = Int(frame.width / cellDimension.width)
+        let newRows = Int(frame.height / cellDimension.height)
+        
+        // 只有在尺寸发生变化时才重新调整大小
+        if newCols != terminal.cols || newRows != terminal.rows {
+            resize(cols: newCols, rows: newRows)
+        }
+        
+        updateCaretView()
+        
+        // 重置标志，恢复刷新
+        suppressRefresh = false
+        
+        // 现在一次性更新屏幕
+        terminal.updateFullScreen()
+        queuePendingDisplay()
+        
+        selectNone()
     }
     
     public init(frame: CGRect, font: UIFont?) {
@@ -1406,10 +1485,10 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     }
   
     open func sizeChanged(source: Terminal) {
-        DispatchQueue.main.async {
+        if !suppressRefresh {
             self.terminalDelegate?.sizeChanged(source: self, newCols: source.cols, newRows: source.rows)
-            self.updateScroller()
         }
+        updateScroller()
     }
   
     open func setTerminalIconTitle(source: Terminal, title: String) {

@@ -56,6 +56,13 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             self.italic = NSFontManager.shared.convert(baseFont, toHaveTrait: [.italicFontMask])
             self.boldItalic = NSFontManager.shared.convert(baseFont, toHaveTrait: [.italicFontMask, .boldFontMask])
         }
+        
+        public init(normal: NSFont, bold: NSFont, italic: NSFont, boldItalic: NSFont) {
+            self.normal = normal
+            self.bold = bold
+            self.italic = italic
+            self.boldItalic = boldItalic
+        }
 
         // Expected by the shared rendering code
         func underlinePosition () -> CGFloat
@@ -120,6 +127,9 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     /// https://developer.apple.com/forums/thread/663256?answerId=646653022#646653022
     public var disableFullRedrawOnAnyChanges = false
     var fontSet: FontSet
+    
+    // 添加一个标志来控制是否抑制刷新操作
+    var suppressRefresh: Bool = false
 
     /// The font to use to render the terminal
     public var font: NSFont {
@@ -127,10 +137,50 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             return fontSet.normal
         }
         set {
-            fontSet = FontSet (font: newValue)
-            resetFont()
-            selectNone()
+            updateFont(newFont: newValue)
         }
+    }
+    
+    /// 更新字体而不清空所有缓存
+    public func updateFont(newFont: NSFont) {
+        // 设置标志，禁止刷新
+        suppressRefresh = true
+        
+        // 保存颜色缓存
+        let savedColors = colors
+        let savedTrueColors = trueColors
+        
+        // 更新fontSet
+        fontSet = FontSet(font: newFont)
+        self.cellDimension = computeFontDimensions()
+        
+        // 只清除字体相关的缓存
+        self.attributes = [:]
+        self.urlAttributes = [:]
+        
+        // 恢复颜色缓存
+        self.colors = savedColors
+        self.trueColors = savedTrueColors
+        
+        // 检查是否需要调整终端大小
+        let newCols = Int(frame.width / cellDimension.width)
+        let newRows = Int(frame.height / cellDimension.height)
+        
+        // 只有在尺寸发生变化时才重新调整大小
+        if newCols != terminal.cols || newRows != terminal.rows {
+            resize(cols: newCols, rows: newRows)
+        }
+        
+        updateCaretView()
+        
+        // 重置标志，恢复刷新
+        suppressRefresh = false
+        
+        // 现在一次性更新屏幕
+        terminal.updateFullScreen()
+        queuePendingDisplay()
+        
+        selectNone()
     }
     
     public init(frame: CGRect, font: NSFont?) {
@@ -1190,7 +1240,55 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     
     public func resetFontSize ()
     {
-        fontSet = FontSet (font: FontSet.defaultFont)
+        updateFont(newFont: FontSet.defaultFont)
+    }
+    
+    /// Sets the various fonts to be used by the terminal to render text
+    /// - Parameters:
+    ///  - normal: The font used by default for most text
+    ///  - bold: The font used for bold text
+    ///  - italic: The font used for italic text
+    ///  - boldItalic: The font used for text that is both bold and italic.
+    public func setFonts (normal: NSFont, bold: NSFont, italic: NSFont, boldItalic: NSFont) {
+        // 设置标志，禁止刷新
+        suppressRefresh = true
+        
+        // 保存颜色缓存
+        let savedColors = colors
+        let savedTrueColors = trueColors
+        
+        fontSet = FontSet (normal: normal, bold: bold, italic: italic, boldItalic: boldItalic)
+        
+        // 更新单元格尺寸
+        self.cellDimension = computeFontDimensions()
+        
+        // 只清除字体相关的缓存
+        self.attributes = [:]
+        self.urlAttributes = [:]
+        
+        // 恢复颜色缓存
+        self.colors = savedColors
+        self.trueColors = savedTrueColors
+        
+        // 检查是否需要调整终端大小
+        let newCols = Int(frame.width / cellDimension.width)
+        let newRows = Int(frame.height / cellDimension.height)
+        
+        // 只有在尺寸发生变化时才重新调整大小
+        if newCols != terminal.cols || newRows != terminal.rows {
+            resize(cols: newCols, rows: newRows)
+        }
+        
+        updateCaretView()
+        
+        // 重置标志，恢复刷新
+        suppressRefresh = false
+        
+        // 现在一次性更新屏幕
+        terminal.updateFullScreen()
+        queuePendingDisplay()
+        
+        selectNone()
     }
     
     func getImageScale () -> CGFloat {
@@ -1277,8 +1375,10 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     }
     
     public func sizeChanged(source: Terminal) {
-        terminalDelegate?.sizeChanged(source: self, newCols: source.cols, newRows: source.rows)
-        updateScroller ()
+        if !suppressRefresh {
+            terminalDelegate?.sizeChanged(source: self, newCols: source.cols, newRows: source.rows)
+        }
+        updateScroller()
     }
     
     func ensureCaretIsVisible ()

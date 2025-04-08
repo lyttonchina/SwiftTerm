@@ -50,12 +50,20 @@ extension TerminalView {
     // This is invoked when the font changes to recompute state
     func resetFont()
     {
-        resetCaches()
+        // 不要调用resetCaches(),而是只清除与字体相关的缓存
+        self.attributes = [:]
+        self.urlAttributes = [:]
+        // 保留颜色缓存，不要重置: this.colors 和 this.trueColors
+        
         self.cellDimension = computeFontDimensions ()
         let newCols = Int(frame.width / cellDimension.width)
         let newRows = Int(frame.height / cellDimension.height)
         resize(cols: newCols, rows: newRows)
         updateCaretView()
+        
+        // 更新显示但不清空颜色缓存
+        terminal.updateFullScreen()
+        queuePendingDisplay()
     }
     
     func updateCaretView ()
@@ -253,12 +261,62 @@ extension TerminalView {
     public func setBackgroundColor(source: Terminal, color: Color) {
         // Can not implement this until I change the color to not be this struct
         nativeBackgroundColor = TTColor.make (color: color)
-        colorsChanged()
+        
+        // 不再调用colorsChanged()，而是仅更新相关的缓存
+        // 清除默认颜色的缓存，但保留其他颜色缓存
+        for key in attributes.keys {
+            if case .defaultColor = key.bg, !key.style.contains(.inverse) {
+                attributes.removeValue(forKey: key)
+            }
+            if case .defaultInvertedColor = key.fg, key.style.contains(.inverse) {
+                attributes.removeValue(forKey: key)
+            }
+        }
+        
+        for key in urlAttributes.keys {
+            if case .defaultColor = key.bg, !key.style.contains(.inverse) {
+                urlAttributes.removeValue(forKey: key)
+            }
+            if case .defaultInvertedColor = key.fg, key.style.contains(.inverse) {
+                urlAttributes.removeValue(forKey: key)
+            }
+        }
+        
+        // 使用suppressRefresh标志来控制是否进行屏幕刷新
+        if !suppressRefresh {
+            terminal.updateFullScreen()
+            queuePendingDisplay()
+        }
     }
     
     public func setForegroundColor(source: Terminal, color: Color) {
         nativeForegroundColor = TTColor.make (color: color)
-        colorsChanged()
+        
+        // 不再调用colorsChanged()，而是仅更新相关的缓存
+        // 清除默认颜色的缓存，但保留其他颜色缓存
+        for key in attributes.keys {
+            if case .defaultColor = key.fg, !key.style.contains(.inverse) {
+                attributes.removeValue(forKey: key)
+            }
+            if case .defaultInvertedColor = key.bg, key.style.contains(.inverse) {
+                attributes.removeValue(forKey: key)
+            }
+        }
+        
+        for key in urlAttributes.keys {
+            if case .defaultColor = key.fg, !key.style.contains(.inverse) {
+                urlAttributes.removeValue(forKey: key)
+            }
+            if case .defaultInvertedColor = key.bg, key.style.contains(.inverse) {
+                urlAttributes.removeValue(forKey: key)
+            }
+        }
+        
+        // 使用suppressRefresh标志来控制是否进行屏幕刷新
+        if !suppressRefresh {
+            terminal.updateFullScreen()
+            queuePendingDisplay()
+        }
     }
     
     /// Sets the color for the cursor block, and the text when it is under that cursor in block mode
@@ -908,6 +966,12 @@ extension TerminalView {
     {
         updateDisplay (notifyAccessibility: true)
         updateDebugDisplay()
+        
+        // 确保光标在正确位置
+        if !suppressRefresh {
+            updateCursorPosition()
+        }
+        
         pendingDisplay = false
     }
     
@@ -1094,6 +1158,14 @@ extension TerminalView {
     
     func feedFinish ()
     {
+        // 确保光标在正确位置
+        ensureCaretIsVisible()
+        
+        // 尝试触发一次新行，这可能会解决 % 符号问题
+        if !suppressRefresh {
+            terminal.refresh(startRow: terminal.buffer.y, endRow: terminal.buffer.y)
+        }
+        
         suspendDisplayUpdates ()
         queuePendingDisplay()
     }
@@ -1114,14 +1186,15 @@ extension TerminalView {
         feedFinish()
     }
          
-    /**
-     * Triggers a resize of the underlying terminal to the desired columsn and rows
-     */
+    /// This calls resize on the underlying terminal emulator which will post an update to all subscribers
     public func resize (cols: Int, rows: Int)
     {
         terminal.resize (cols: cols, rows: rows)
-        sizeChanged (source: terminal)
-        terminal.resetToInitialState()
+        
+        // 仅当不是在字体更新过程中时才调用 sizeChanged
+        if !suppressRefresh {
+            sizeChanged (source: terminal)
+        }
     }
     
     /**
@@ -1319,6 +1392,5 @@ extension TerminalView {
     public func selectNone () {
         selection.selectNone()
     }
-    
 }
 #endif
