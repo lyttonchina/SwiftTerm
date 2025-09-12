@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:SwiftTerm}",
+            "name": "Debug SwiftTermFuzz",
+            "program": "${workspaceFolder:SwiftTerm}/.build/debug/SwiftTermFuzz",
+            "preLaunchTask": "swift: Build Debug SwiftTermFuzz"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:SwiftTerm}",
+            "name": "Release SwiftTermFuzz",
+            "program": "${workspaceFolder:SwiftTerm}/.build/release/SwiftTermFuzz",
+            "preLaunchTask": "swift: Build Release SwiftTermFuzz"
+        }
+    ]
+}
