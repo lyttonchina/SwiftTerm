@@ -104,6 +104,8 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
 
     var selection: SelectionService!
     private var scroller: NSScroller!
+    private var scrollHideTimer: Timer?
+    private var isUserScrolling = false
     
     // Attribute dictionary, maps a console attribute (color, flags) to the corresponding dictionary
     // of attributes for an NSAttributedString
@@ -238,6 +240,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         if let resignMainObserver {
             NotificationCenter.default.removeObserver (resignMainObserver)
         }
+        scrollHideTimer?.invalidate()
     }
     
     func setupFocusNotification() {
@@ -329,6 +332,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     @objc
     func scrollerActivated ()
     {
+        markUserScrolling()
         switch scroller.hitPart {
         case .decrementPage:
             pageUp()
@@ -512,8 +516,30 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         scroller.isEnabled = canScroll
         scroller.doubleValue = scrollPosition
         scroller.knobProportion = scrollThumbsize
+        
+        // 只有在可以滚动且用户正在滚动时才显示滚动条
+        let shouldShow = canScroll && isUserScrolling
+        scroller.isHidden = !shouldShow
+        
         // 强制重绘滚动条
         scroller.needsDisplay = true
+    }
+    
+    /// 标记用户开始滚动，显示滚动条并启动隐藏定时器
+    private func markUserScrolling() {
+        guard canScroll else { return }
+        
+        isUserScrolling = true
+        updateScroller()
+        
+        // 取消之前的定时器
+        scrollHideTimer?.invalidate()
+        
+        // 2秒后自动隐藏滚动条
+        scrollHideTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            self?.isUserScrolling = false
+            self?.updateScroller()
+        }
     }
     
     var userScrolling = false
@@ -819,6 +845,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             if terminal.applicationCursor {
                 send (EscapeSequences.cmdPageUp)
             } else {
+                markUserScrolling()
                 pageUp()
             }
         case #selector(scrollPageDown(_:)):
@@ -827,6 +854,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             if terminal.applicationCursor {
                 send (EscapeSequences.cmdPageDown)
             } else {
+                markUserScrolling()
                 pageDown()
             }
         case #selector(pageDownAndModifySelection(_:)):
@@ -1212,6 +1240,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         if event.deltaY == 0 {
             return
         }
+        markUserScrolling()
         let velocity = calcScrollingVelocity(delta: Int (abs (event.deltaY)))
         if event.deltaY > 0 {
             scrollUp (lines: velocity)
