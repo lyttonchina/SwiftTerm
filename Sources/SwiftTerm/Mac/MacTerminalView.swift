@@ -438,7 +438,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         }
 
         // 进一步减小滚动条宽度，取原来宽度的60%
-        let scrollerWidth = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy) * 0.6
+        let scrollerWidth = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy) * 0.2
         
         // 使用完全自定义的滚动条类
         scroller = CustomScroller(frame: NSRect(x: bounds.maxX - scrollerWidth, y: 0, width: scrollerWidth, height: bounds.height))
