@@ -449,6 +449,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         scroller.autoresizingMask = [.minXMargin, .height]
         scroller.knobProportion = 0.1
         scroller.isEnabled = false
+        scroller.isHidden = true  // 默认隐藏滚动条
         
         addSubview(scroller)
         scroller.action = #selector(scrollerActivated)
@@ -513,12 +514,20 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     
     func updateScroller ()
     {
-        scroller.isEnabled = canScroll
+        // 如果内容不满一屏，直接隐藏滚动条
+        guard canScroll else {
+            scroller.isEnabled = false
+            scroller.isHidden = true
+            isUserScrolling = false  // 重置滚动状态
+            return
+        }
+        
+        scroller.isEnabled = true
         scroller.doubleValue = scrollPosition
         scroller.knobProportion = scrollThumbsize
         
         // 只有在可以滚动且用户正在滚动时才显示滚动条
-        let shouldShow = canScroll && isUserScrolling
+        let shouldShow = isUserScrolling
         scroller.isHidden = !shouldShow
         
         // 强制重绘滚动条
