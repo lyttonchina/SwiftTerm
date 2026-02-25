@@ -172,7 +172,7 @@ public class Buffer {
     
     weak var terminal: Terminal!
     
-    var lines : CircularList<BufferLine> {
+    public var lines : CircularList<BufferLine> {
         get { return _lines }
     }
     
@@ -426,7 +426,7 @@ public class Buffer {
         cols = newCols
     }
     
-    func translateBufferLineToString (lineIndex: Int, trimRight: Bool, startCol: Int = 0, endCol: Int = -1) -> String
+    public func translateBufferLineToString (lineIndex: Int, trimRight: Bool, startCol: Int = 0, endCol: Int = -1) -> String
     {
         let line = _lines [lineIndex]
         return line.translateToString(trimRight: trimRight, startCol: startCol, endCol: endCol)

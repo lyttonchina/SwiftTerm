@@ -12,11 +12,11 @@ enum ArgumentError : Error {
     case invalidArgument(String)
 }
 
-class CircularList<T> {
+public class CircularList<T> {
     
     var array: [T?]
     var startIndex: Int
-    var count: Int {
+    public var count: Int {
         get {
             return _count
         }
