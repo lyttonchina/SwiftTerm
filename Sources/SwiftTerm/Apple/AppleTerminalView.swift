@@ -284,8 +284,11 @@ extension TerminalView {
         
         // 使用suppressRefresh标志来控制是否进行屏幕刷新
         if !suppressRefresh {
+            // 这里是「纯配色变更」，频率很低，但对视觉同步要求很高
+            // 为了避免 queuePendingDisplay 的 1/60 秒节流带来的那一帧不同步，
+            // 直接触发一次完整重绘，让终端内容和宿主容器背景可以在同一帧更新。
             terminal.updateFullScreen()
-            queuePendingDisplay()
+            updateDisplay(notifyAccessibility: false)
         }
     }
     
@@ -314,8 +317,9 @@ extension TerminalView {
         
         // 使用suppressRefresh标志来控制是否进行屏幕刷新
         if !suppressRefresh {
+            // 同 setBackgroundColor，一次性立即刷新，避免颜色更新被节流
             terminal.updateFullScreen()
-            queuePendingDisplay()
+            updateDisplay(notifyAccessibility: false)
         }
     }
     
